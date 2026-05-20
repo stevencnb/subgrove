@@ -1,6 +1,6 @@
-# Local tests
+# Local tests (with-submodule tier)
 
-Tests under `tests/local/`. Run with `./tests/run.sh --local-only`. Each scenario builds a fresh fixture (`super/` + `sm-a/` + `sm-b/`, all via `git init`) under `tests/run/<timestamp>-<name>/` and invokes subgrove through a symlink to the script under test.
+Tests under `tests/local/`. Run with `./tests/run.sh --local-only`, which also discovers the parallel no-submodule tier under `tests/local-no-sm/` — see [testing-local-no-sm.md](testing-local-no-sm.md) for that tier's design, scenarios, and invariants. Each scenario builds a fresh fixture (`super/` + `sm-a/` + `sm-b/`, all via `git init`) under `tests/run/<timestamp>-<name>/` and invokes subgrove through a symlink to the script under test.
 
 The local fixture has **no `origin`** on the superproject (it was `git init`'d in place, never cloned), matching the "user hasn't configured a remote" scenario. The submodules under `super/` do have `file://` origins to their sibling source repos (set automatically by `git submodule add`) — subgrove's submodule-level fetch paths can exercise against those.
 
@@ -196,7 +196,7 @@ Guards: the `require_clean` × force-flag matrix across every per-location dirty
 
 These paths can't be exercised against the local fixture (super has no `origin`); they live in [testing-remote.md](testing-remote.md):
 
-- `merge push=true` — super has no `origin` to push to.
+- `merge push=true` happy path — super has no `origin` to push to. (A push=true error path is locally testable on the no-submodule fixture — see [testing-local-no-sm.md](testing-local-no-sm.md).)
 - `new`'s fresh-base-from-origin — super has no `origin` to fetch from.
 
 ## Cross-reference

@@ -42,6 +42,8 @@ Patterns enforced across the local suite:
 
 Untracked files are deliberately excluded from `snapshot_state` so the test's own `out` redirect doesn't pollute the snapshot. See [testing.md § Test design principles](testing.md#test-design-principles).
 
+The no-submodule tier (`tests/local-no-sm/`) enforces the same patterns where they apply: `snapshot_state` + `assert_state_eq` on every refuse/no-op path; `assert_pending_file` on dirty-refuse cases; `assert_ancestor` on the success path of `merge_golden`; `assert_branch_at` (with captured pre-SHA) on each `-f` force-remove case to verify the parent feat branch survives a force-discard of the dirty worktree; parent-state snapshot on the `new_build_chain_bad` rollback to verify the trap's blast radius is bounded. See [testing-local-no-sm.md](testing-local-no-sm.md) for the per-scenario tables.
+
 ## Edge cases worth knowing about
 
 None are observed failures or active rule violations. They're places where the contract has a thin edge that future code or unusual user states could push past — recorded so they don't have to be re-derived.

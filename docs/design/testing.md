@@ -32,10 +32,23 @@ Tests cd into `super/` and invoke subgrove through a symlink to the script under
 
 Paths NOT covered locally:
 
-- `merge push=true` — super has no `origin`, nothing to push to.
+- `merge push=true` happy path — super has no `origin`, push has no remote to land on. (A push=true error path **is** covered locally — see the no-submodule tier below.)
 - `new`'s fresh-base-from-origin — same reason.
 
 Both are covered by the remote tests.
+
+### No-submodule variant (`tests/local-no-sm/`)
+
+A parallel tier under `tests/local-no-sm/` exercises subgrove against a super with **no** `.gitmodules` and no submodules at all. The fixture is a single `git init super/` — no sibling `sm-a/`/`sm-b/` repos. Same `.gitignore` / `.subgroverc` / `subgrove` symlink as the with-submodule fixture.
+
+Full design, scenarios, and per-file case lists live in [testing-local-no-sm.md](testing-local-no-sm.md). At a glance, the tier guards four invariants:
+
+1. **Subgrove degrades gracefully when `.gitmodules` is absent.** `list_all_submodules` returns empty and every consumer no-ops.
+2. **Submodule-phase info lines stay honest in the zero-submodule case** — `touched: (none)`, `Submodules merged: (none)`, `Updated 0 submodule main(s)`, etc.
+3. **Submodule-relevant parameters never crash on a no-sm super.** `touch=<sm>`, multi-name `touch=`, `BUILD_CHAIN=(<sm>)`, `merge push=true` — each errs cleanly with rollback (where applicable) or produces a defined no-op.
+4. **Parent-only flows are isolated from submodule machinery** (no `_update_sync` ref leaks; "Preserved N submodule branch(es)" line absent on no-sm `remove`).
+
+Run with `tests/run.sh --local-only`, which discovers both `local/` and `local-no-sm/`. The remote tier does not have a no-submodule counterpart — the existing remote tests already require three GitHub URLs, and adding a fourth fixture URL buys little over what `local-no-sm/` already covers. Deferred until a concrete need arises.
 
 ## Remote tests (opt-in, default-on when configured)
 
@@ -163,5 +176,6 @@ Real bugs surfaced across rounds so far: one subgrove bug (cmd_remove not preser
 
 Every scenario, its setup, what it asserts, and which design invariant it guards:
 
-- [testing-local.md](testing-local.md) — 67 single-case scenarios + 96 parametric matrix iterations across `test_new`, `test_remove`, `test_merge`, `test_update`, `test_list`/dispatcher, `test_linked_worktree`, plus `test_merge_matrix` and `test_remove_matrix`.
+- [testing-local.md](testing-local.md) — with-submodule local scenarios (67 single-case + 96 parametric matrix iterations).
+- [testing-local-no-sm.md](testing-local-no-sm.md) — no-submodule local tier.
 - testing-remote.md — coming next.

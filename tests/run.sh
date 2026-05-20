@@ -1,11 +1,16 @@
 #!/usr/bin/env bash
 # Entry point for subgrove tests. Plain bash, zero deps.
 #
-#   tests/run.sh                run all tests (local + remote)
-#   tests/run.sh --local-only   skip the remote tests
+#   tests/run.sh                run all tests (local + local-no-sm + remote)
+#   tests/run.sh --local-only   skip the remote tests (local + local-no-sm only)
 #   tests/run.sh test_merge     substring filter against test basenames
 #   tests/run.sh -v             stream each test's output live
 #   tests/run.sh --clean        rm -rf tests/run/* and exit
+#
+# Tiers:
+#   tests/local/        — with-submodule fixture (super/ + sm-a/ + sm-b/)
+#   tests/local-no-sm/   — no-submodule fixture (super/ only, no .gitmodules)
+#   tests/remote/       — real GitHub fixture (gated on tests/config.sh URLs)
 #
 # Remote-test URLs come from tests/config.sh (committed). Override per-run
 # via env: SUBGROVE_TEST_SUPER_URL=... SUBGROVE_TEST_SM_URL=...
@@ -40,12 +45,17 @@ usage() {
 Usage: tests/run.sh [-v] [--local-only] [--clean] [FILTER]
 
   -v             stream each test's output live (verbose)
-  --local-only   skip tests/remote/ — run only the local tests
-  --clean        rm -rf tests/fixtures/* and exit
+  --local-only   skip tests/remote/ — run tests/local/ and tests/local-no-sm/
+  --clean        rm -rf tests/run/* and exit
   FILTER         run only tests whose basename contains FILTER
 
-By default, runs all tests (local + remote). Remote-test URLs come from
-tests/config.sh. Override with env:
+Tiers:
+  tests/local/        with-submodule fixture (super/ + sm-a/ + sm-b/)
+  tests/local-no-sm/   no-submodule fixture (super/ only, no .gitmodules)
+  tests/remote/       real GitHub fixture (gated on URLs below)
+
+By default, runs all tiers. Remote-test URLs come from tests/config.sh.
+Override with env:
   SUBGROVE_TEST_SUPER_URL=<git url for test superproject>
   SUBGROVE_TEST_SM_URL=<git url for first test submodule (sm-a)>
   SUBGROVE_TEST_SM_URL2=<git url for second test submodule (sm-b)>
@@ -70,12 +80,14 @@ while [[ $# -gt 0 ]]; do
 done
 
 tests=()
-for t in "$TESTS_DIR"/local/test_*.sh; do
-    [[ -f "$t" ]] || continue
-    if [[ -n "$filter" ]]; then
-        case "$(basename "$t")" in *"$filter"*) ;; *) continue ;; esac
-    fi
-    tests+=("$t")
+for tier in local local-no-sm; do
+    for t in "$TESTS_DIR"/"$tier"/test_*.sh; do
+        [[ -f "$t" ]] || continue
+        if [[ -n "$filter" ]]; then
+            case "$(basename "$t")" in *"$filter"*) ;; *) continue ;; esac
+        fi
+        tests+=("$t")
+    done
 done
 if [[ $local_only -ne 1 ]]; then
     # Sanity-check remote-test config up front so we fail fast (and once)
@@ -118,7 +130,9 @@ failed=0
 failed_names=()
 
 for t in "${tests[@]}"; do
-    name="$(basename "$t" .sh)"
+    # Include the tier dir in the displayed name so test_new.sh in
+    # local/ vs local-no-sm/ are distinguishable in the output.
+    name="$(basename "$(dirname "$t")")/$(basename "$t" .sh)"
     if [[ $verbose -eq 1 ]]; then
         echo "--- $name"
         if ( bash "$t" ); then
