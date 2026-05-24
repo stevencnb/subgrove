@@ -44,6 +44,17 @@ Untracked files are deliberately excluded from `snapshot_state` so the test's ow
 
 The no-submodule tier (`tests/local-no-sm/`) enforces the same patterns where they apply: `snapshot_state` + `assert_state_eq` on every refuse/no-op path; `assert_pending_file` on dirty-refuse cases; `assert_ancestor` on the success path of `merge_golden`; `assert_branch_at` (with captured pre-SHA) on each `-f` force-remove case to verify the parent feat branch survives a force-discard of the dirty worktree; parent-state snapshot on the `new_build_chain_bad` rollback to verify the trap's blast radius is bounded. See [testing-local-no-sm.md](testing-local-no-sm.md) for the per-scenario tables.
 
+The remote tier (`tests/remote/`) pins the same byte-identical preservation across wire-only paths the local fixtures can't reach:
+
+| Command | Preserved location(s), pinned every case (happy + refuse + partial) |
+|---|---|
+| `merge push=true` | feat worktree (parent + sm-a + sm-b) — Phase 2 only touches main super; even on partial-failure (sm-a pushed, sm-b rejected, super never reached) the source feat worktree is byte-identical |
+| `update` | main super (parent + sm-a + sm-b) + peer worktree (parent + sm-a + sm-b) — cmd_update is ref-only, no working-tree touch anywhere, including on diverged-peer refusal paths |
+| `remove` | main super (parent + sm-a + sm-b) — only the named worktree disappears; main super's working tree is byte-identical, only the preserved feat branch ref is added |
+| `new` | main super (parent + sm-a + sm-b) — only the gitignored `.worktree/<name>/` dir is added; on the branch-collision refuse, both main super AND the existing feat worktree are preserved |
+
+The two parametric remote matrices (`test_merge_push_matrix.sh` with 8 cells over per-package origin state `{even, ahead}^3`, `test_update_matrix.sh` with 16 cells over per-sm `{origin: even, ahead} × {peer: clean, local}`) apply the worktree-preservation snapshot to every cell. See [testing-remote.md](testing-remote.md) for the per-scenario tables and the wire-specific invariants (FF-only push, push-order half-state, baseline-tag reset between cells).
+
 ## Edge cases worth knowing about
 
 None are observed failures or active rule violations. They're places where the contract has a thin edge that future code or unusual user states could push past — recorded so they don't have to be re-derived.

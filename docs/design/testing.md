@@ -7,13 +7,16 @@ Subgrove ships with a real-git test suite under `tests/`. Subgrove's logic is to
 ```
 tests/
 ├── run.sh           # entry point; runs all tests or a filtered subset
+├── init_remote.sh   # one-time bootstrap of the remote fixture repos
 ├── config.sh        # remote-test URLs (committed; maintainer fills in)
 ├── lib/
 │   ├── assert.sh    # assert_eq, assert_branch_at, assert_grep, ...
-│   ├── mutators.sh  # commit_one (state mutations beyond this are inlined per test)
+│   ├── mutators.sh  # commit_one + push_to_origin_main (side-clone helpers)
 │   ├── fixture_local.sh
+│   ├── fixture_local_no_sm.sh
 │   └── fixture_remote.sh
-├── local/           # local-only tests (no GitHub)
+├── local/           # local-only tests (no GitHub), with-submodule fixture
+├── local-no-sm/     # local-only tests, no-submodule fixture
 ├── remote/          # tests that push to real GitHub
 └── run/             # gitignored; per-test fixtures land here at runtime
 ```
@@ -58,16 +61,33 @@ Gated on three GitHub URLs in `tests/config.sh`:
 - `SUBGROVE_TEST_SM_URL` — first test submodule (mapped to `sm-a`)
 - `SUBGROVE_TEST_SM_URL2` — second test submodule (mapped to `sm-b`)
 
-Per-run flow:
+The remote tier uses a two-layer fixture: one-time bootstrap, then per-test reset.
 
-1. **Lock.** `git ls-remote $SUBGROVE_TEST_SUPER_URL refs/tags/subgrove-test-lock`. If the tag exists, abort with the remediation command. Otherwise push the tag and register an `EXIT`/`INT`/`TERM` trap to delete it.
-2. **Baseline reset.** Force-push an orphan baseline to each submodule repo's `main`. Build a super baseline whose `.gitmodules` references both URLs; force-push it to the super repo's `main`.
-3. **Working clone.** Re-clone super into `tests/run/<ts>-remote-<name>/super/`, init both submodules, drop in `.gitignore` / `.subgroverc` / `subgrove` symlink.
-4. **Teardown trap.** Delete every feature branch the run created on all three repos; delete the lock tag.
+### One-time bootstrap
+
+After filling in `tests/config.sh` (or pointing the env vars at fresh fixture repos), run:
+
+```bash
+tests/init_remote.sh             # prompts before force-pushing
+tests/init_remote.sh --yes       # non-interactive (CI)
+tests/init_remote.sh --force --yes  # re-bootstrap even if baseline exists
+```
+
+The script pushes a one-commit baseline + `subgrove-baseline` tag to each of the three remotes. Idempotent: if all three already have the tag, it exits without touching anything. `--force` bypasses the skip-check; a human `[y/N]` prompt fires before the actual force-push and is bypassable with `--yes`.
+
+### Per-test flow
+
+1. **Baseline-tag precondition check.** Verify `subgrove-baseline` exists on all three; fail loudly with a "run `tests/init_remote.sh`" hint if missing.
+2. **Lock.** First `mkfixture_remote` in the script checks `git ls-remote $SUBGROVE_TEST_SUPER_URL refs/tags/subgrove-test-lock`; if present, aborts with the remediation command. Otherwise pushes the tag and registers an `EXIT`/`INT`/`TERM` trap to delete it. The lock is process-scoped: a multi-iteration test (matrix) acquires once and keeps the lock until script exit.
+3. **Reset main to baseline.** For each URL, `git push --force <url> refs/tags/subgrove-baseline:refs/heads/main` — cheap ref-only push (baseline objects are already on the server). Every test starts from a known-clean state on all three remotes.
+4. **Working clone.** Clone super into `tests/run/<ts>-remote-<name>/super/`, init both submodules, drop in the `subgrove` symlink and `.worktree/`.
+5. **Teardown trap.** `cd` to a known-good cwd (in case the test rm'd its own cwd), best-effort delete every feature branch the script registered on all three repos, then delete the lock tag (inline stderr capture: a real release failure surfaces a loud warning with manual-recovery hint).
 
 The remote tests are **intentionally serial**. The lock turns a parallel run from another machine into a fast failure rather than corrupted state. Run `tests/run.sh --local-only` to skip the remote tests entirely (useful in CI or for contributors without push access to the fixture repos).
 
-Multi-submodule scenarios over the wire — `push=true` advancing both origins, partial `update` where only one submodule moved — are covered here. The two-phase merge half-state invariant stays local-only: forging a divergent submodule commit while keeping the parent clean is awkward over the wire without an extra contributor clone.
+Multi-submodule scenarios over the wire — `push=true` advancing every origin, partial `update` where only one submodule moved, push order on multi-package failures (sm-a → sm-b → super; set -e abort on first), per-package origin-drift matrices for both `merge push=true` and `update` — are covered here. The two-phase merge half-state invariant stays local-only: forging a divergent submodule commit while keeping the parent clean is awkward over the wire without an extra contributor clone.
+
+Full case lists in [testing-remote.md](testing-remote.md).
 
 ## Conventions
 
@@ -178,4 +198,4 @@ Every scenario, its setup, what it asserts, and which design invariant it guards
 
 - [testing-local.md](testing-local.md) — with-submodule local scenarios (67 single-case + 96 parametric matrix iterations).
 - [testing-local-no-sm.md](testing-local-no-sm.md) — no-submodule local tier.
-- testing-remote.md — coming next.
+- [testing-remote.md](testing-remote.md) — remote tier (19 single-case + 24 parametric matrix iterations against real GitHub).
