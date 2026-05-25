@@ -200,7 +200,7 @@ Real bugs surfaced across rounds so far: one subgrove bug (cmd_remove not preser
 
 Every scenario, its setup, what it asserts, and which design invariant it guards:
 
-- [testing-local.md](testing-local.md) — with-submodule local scenarios (67 single-case + 96 parametric matrix iterations).
+- [testing-local.md](testing-local.md) — with-submodule local scenarios (70 single-case + 96 parametric matrix iterations).
 - [testing-local-no-sm.md](testing-local-no-sm.md) — no-submodule local tier.
 - [testing-remote.md](testing-remote.md) — with-submodule remote tier (19 single-case + 24 parametric matrix iterations against real GitHub).
 - [testing-remote-no-sm.md](testing-remote-no-sm.md) — no-submodule remote tier (48 single-case + 8 parametric matrix iterations against real GitHub).

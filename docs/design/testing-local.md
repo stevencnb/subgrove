@@ -4,7 +4,7 @@ Tests under `tests/local/`. Run with `./tests/run.sh --local-only`, which also d
 
 The local fixture has **no `origin`** on the superproject (it was `git init`'d in place, never cloned), matching the "user hasn't configured a remote" scenario. The submodules under `super/` do have `file://` origins to their sibling source repos (set automatically by `git submodule add`) — subgrove's submodule-level fetch paths can exercise against those.
 
-163 scenarios across eight files (67 single-case scenarios + 96 parametric matrix iterations).
+166 scenarios across eight files (70 single-case scenarios + 96 parametric matrix iterations).
 
 ## Test lifecycle
 
@@ -53,7 +53,7 @@ Then the test does its work (`cd $FIXTURE_SUPER`, `./subgrove …`, assertions).
 
 Each scenario builds its own fresh fixture. No state carries between scenarios; one scenario's success or failure doesn't depend on any other's. `tests/run.sh --clean` wipes the entire `tests/run/` directory (including any kept fixtures from past failures).
 
-## `test_new.sh` (17)
+## `test_new.sh` (18)
 
 | Scenario | Setup | Asserts | Guards |
 |---|---|---|---|
@@ -74,8 +74,9 @@ Each scenario builds its own fresh fixture. No state carries between scenarios; 
 | BUILD_CHAIN with multiple modules | `BUILD_CHAIN=(sm-a sm-b)`, `BUILD_CMD="touch .built"`; then `new` | `.built` exists in both worktree submodules | The BUILD_CHAIN loop runs each module's BUILD_CMD; order matters but every entry runs. |
 | Dirty main super doesn't block | dirty parent + both submodules in main super before `new` | new succeeds; the new worktree's HEAD is on `feat/feat-x`; dirty edits preserved | cmd_new doesn't `require_clean` — main super state is irrelevant. |
 | Invocation from non-default cwd | invoke via absolute path from `$FIXTURE_ROOT` (not from inside `$FIXTURE_SUPER`) | worktree lands inside `$FIXTURE_SUPER/.worktree/`, not in cwd | subgrove uses `dirname $0` (→ `$FIXTURE_SUPER`), not the caller's cwd. Catches a `$PWD`-vs-`SCRIPT_DIR` confusion bug. |
+| Rollback keeps a committed branch | `BUILD_CHAIN=(sm-a)` + `BUILD_CMD` that commits on the parent worktree then `false`; `new feat-x` | new fails; worktree dir gone; **`feat/feat-x` retained** at the wip commit (1 ahead of `main`); "advanced past its creation point" warn | `_rollback_new` skips `branch -D` when the branch moved past its creation SHA (`ROLLBACK_BR_SHA`), so build-chain commits onto the parent aren't lost. |
 
-## `test_remove.sh` (13)
+## `test_remove.sh` (14)
 
 | Scenario | Setup | Asserts | Guards |
 |---|---|---|---|
@@ -92,6 +93,7 @@ Each scenario builds its own fresh fixture. No state carries between scenarios; 
 | Selective preservation (`touch=sm-a` + remove) | `new feat-y touch=sm-a` then `remove feat-y` | sm-a's feat preserved; sm-b has no preserved branch (never had one) | The preservation loop's per-submodule filter — only submodules with the feat branch in the worktree get fetched out. |
 | Preserved branch reflects advanced state | `new feat-x` + commit on `feat-x/sm-a` + `remove -f feat-x` | preserved `sm-a feat/feat-x` is at the advanced commit, not the original recorded gitlink SHA | Locks in that the preservation fetch transfers the user's actual work — not a stale snapshot of the gitlink SHA. |
 | No-op preservation (`touch=none` + remove) | `new feat-z touch=none` then `remove feat-z` | parent feat retained; no submodule feat branches preserved (nothing to preserve) | Preservation loop silently skips when no submodule had the feat branch. |
+| Preservation-fetch failure aborts (even `-f`) | commit on worktree's `sm-a` feat; dirty worktree; create a `feat` branch in main super's `sm-a` (D/F conflict vs `refs/heads/feat/feat-x`); `remove feat-x -f` | remove aborts (non-zero); err "sm-a: failed to preserve"; worktree intact; worktree's `sm-a feat/feat-x` preserved; "Removing worktree" absent | `cmd_remove` errs before `rm -rf` on a failed preservation fetch; `-f` bypasses the cleanliness gate but never this preservation gate. |
 
 ## `test_merge.sh` (16)
 
@@ -114,7 +116,7 @@ Each scenario builds its own fresh fixture. No state carries between scenarios; 
 | Dirty source submodule refused | edit a tracked file in `.worktree/feat-x/sm-a/` | err; main worktree's sm-a main unchanged | The dirty-check covers the SRC submodule on every touched submodule. |
 | Multi-peer propagation | `new feat-x` + `new feat-y` + `new feat-z`; commit on feat-x/sm-a; merge feat-x | sm-a's main in BOTH feat-y AND feat-z matches the new sm-a main | The peer-propagation loop iterates every peer worktree, not just the first one. |
 
-## `test_update.sh` (9)
+## `test_update.sh` (10)
 
 | Scenario | Setup | Asserts | Guards |
 |---|---|---|---|
@@ -128,6 +130,7 @@ Each scenario builds its own fresh fixture. No state carries between scenarios; 
 | Nonexistent name | `update never-existed` | err | Doesn't silently no-op. |
 | Multiple submodules update in one run | commit in BOTH sibling sm-a and sm-b; then update feat-y | both feat-y submodule mains advance to their respective new SHAs | The per-submodule loop in `cmd_update` handles every submodule independently; one update call can move multiple peer submodules. |
 | Dirty main super doesn't block | dirty parent + both submodules in main super; commit in sibling sm-a; then update feat-y | update succeeds; feat-y's sm-a main advances to the new SHA | cmd_update is ref-only and doesn't `require_clean` — main super dirty state is irrelevant. |
+| Pre-existing `_update_sync` is a USER branch | forge `_update_sync` in main super's `sm-a` at a commit unreachable from `origin/main`; advance `sm-b`'s origin; `update feat-y` | `sm-a` skipped ("not a stale sentinel" warn) and its `_update_sync` preserved at the forged SHA; `sm-b`'s peer main FF'd; "Updated 1 …; 1 skipped" | The pre-clean refuses to delete a same-named ref not reachable from `origin/main` (a stale sentinel always is); the run continues past the skip. |
 
 ## `test_linked_worktree.sh` (3)
 

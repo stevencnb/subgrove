@@ -11,7 +11,7 @@
 
 ## Rollback on partial failure
 
-If anything during `new` fails after the worktree directory has been created (submodule init, branch creation, build), an `EXIT`/`INT`/`TERM` trap removes the half-built worktree (`rm -rf <wt>` + `git worktree prune` + `git branch -D <prefix><name>`) so a retry of the same name doesn't trip on residue. The trap is disarmed at the end of `cmd_new` on success.
+If anything during `new` fails after the worktree directory has been created (submodule init, branch creation, build), an `EXIT`/`INT`/`TERM` trap removes the half-built worktree (`rm -rf <wt>` + `git worktree prune` + `git branch -D <prefix><name>`) so a retry of the same name doesn't trip on residue. The trap is disarmed at the end of `cmd_new` on success. The `branch -D` is skipped when the feat branch advanced past the SHA it was created at — e.g. an atypical build chain that committed onto the parent branch before failing — so those commits survive the rollback (see [user-data-rules.md](user-data-rules.md)).
 
 ## `remove`
 

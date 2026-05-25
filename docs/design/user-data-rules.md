@@ -9,20 +9,20 @@ Operationally these collapse into one: every byte under the user's control — c
 
 ## How the script upholds the rules
 
-- **No history-rewriting verbs.** `--amend`, `rebase`, `reset --hard`, `filter-branch` appear nowhere in the script. The only ref-moving operations are `git fetch` and `git checkout -B main <feat_sha>` (`subgrove:476`), and the latter is gated by the Phase 1 ancestor check on the same code region (`subgrove:452`) — so `main` only ever fast-forwards.
-- **Two-phase merge.** Validation (`subgrove:432–463`) precedes mutation (`subgrove:464–479`). Any non-FF or dirty refusal in Phase 1 means Phase 2 never runs, so no `main` ref anywhere has moved. See [merge.md](merge.md).
+- **No history-rewriting verbs.** `--amend`, `rebase`, `reset --hard`, `filter-branch` appear nowhere in the script. The only ref-moving operations are `git fetch` and `git checkout -B main <feat_sha>` (`subgrove:498`), and the latter is gated by the Phase 1 ancestor check on the same code region (`subgrove:474`) — so `main` only ever fast-forwards.
+- **Two-phase merge.** Validation (`subgrove:452–486`) precedes mutation (`subgrove:487–505`). Any non-FF or dirty refusal in Phase 1 means Phase 2 never runs, so no `main` ref anywhere has moved. See [merge.md](merge.md).
 - **Force refspecs (`+ref:ref`) are scoped to script-owned refs:**
 
 | Site | Refspec | Why force is safe |
 |---|---|---|
-| `subgrove:448` | `+refs/heads/<branch>:refs/heads/<branch>` into main super's submodule (merge Phase 1) | Imports feat objects across the per-worktree git-dir boundary. The destination ref *is* the feat branch being merged. |
-| `subgrove:524` | `+refs/heads/main:refs/remotes/origin/main` into peer (merge propagation under `push=true`) | Only touches the peer's remote-tracking ref, mirroring the just-pushed origin/main. |
-| `subgrove:333` | `+refs/heads/<branch>:refs/heads/<branch>` into main super's submodule (remove preservation) | Source is the user's own linked-worktree feat branch; `+` exists so a stale copy from a prior remove-then-recreate doesn't block preservation. |
+| `subgrove:470` | `+refs/heads/<branch>:refs/heads/<branch>` into main super's submodule (merge Phase 1) | Imports feat objects across the per-worktree git-dir boundary. The destination ref *is* the feat branch being merged. |
+| `subgrove:547` | `+refs/heads/main:refs/remotes/origin/main` into peer (merge propagation under `push=true`) | Only touches the peer's remote-tracking ref, mirroring the just-pushed origin/main. |
+| `subgrove:349` | `+refs/heads/<branch>:refs/heads/<branch>` into main super's submodule (remove preservation) | Source is the user's own linked-worktree feat branch; `+` exists so a stale copy from a prior remove-then-recreate doesn't block preservation. A failure of this fetch now aborts `remove` before any `rm -rf` (`subgrove:348–358`). |
 
 - **Destructive operations are bounded.** `rm -rf` and `branch -D` appear only in:
-  - `cmd_remove` (`subgrove:350–351`) — gated by the cleanliness check, or `-f`.
-  - `_rollback_new` (`subgrove:60–63`) — only touches the worktree + branch this same invocation just created (trap armed at `subgrove:208`, after the create at `subgrove:201`).
-- **`cmd_update` is ref-only** (`subgrove:565–630`). No working-tree touch in main worktree or peer; no `require_clean`. The `_update_sync` sentinel is created and deleted around the propagation fetch.
+  - `cmd_remove` (`subgrove:372–373`) — gated by the cleanliness check, or `-f`; never reached if the feat-branch preservation fetch above fails.
+  - `_rollback_new` (`subgrove:61–74`) — only touches the worktree + branch this same invocation just created (trap armed at `subgrove:223`, after the create at `subgrove:215`). The `branch -D` is skipped when the branch advanced past its creation SHA (`ROLLBACK_BR_SHA`, captured at `subgrove:222`), so build-chain commits aren't lost.
+- **`cmd_update` is ref-only** (`subgrove:587–664`). No working-tree touch in main worktree or peer; no `require_clean`. The `_update_sync` sentinel is created and deleted around the propagation fetch; the defensive pre-clean refuses to delete a same-named ref that isn't a stale sentinel (`subgrove:630–638`).
 - **`merge -f` was deliberately removed.** See [trade-offs.md](trade-offs.md): "The right resolution is to commit or drop that work, not wipe it."
 
 ## How the tests check the rules
@@ -57,24 +57,24 @@ The two parametric remote matrices (`test_merge_push_matrix.sh` with 8 cells ove
 
 The no-submodule remote tier (`tests/remote-no-sm/`) enforces the identical contract on a no-`.gitmodules` super, with the per-package locations collapsing to just the parent: `merge push=true` (and `merge` push=false) preserve the source feat worktree on every case incl. refuse; `update` preserves main super + peer worktree on every case; `remove` preserves main super on every case incl. the `-f` force variants and the multi-worktree case; `new` preserves main super. Success `merge` cases additionally carry `assert_ancestor` for history correctness. The only un-snapshotted paths are `new`'s early-validation refuses, which fire before any mutation. See [testing-remote-no-sm.md](testing-remote-no-sm.md) for the per-scenario tables.
 
-## Edge cases worth knowing about
+## Hardened edge cases
 
-None are observed failures or active rule violations. They're places where the contract has a thin edge that future code or unusual user states could push past — recorded so they don't have to be re-derived.
+These were thin edges where the contract could be pushed past by an unusual user state. Each is now closed by an explicit guard with a test pinning the failure path. Recorded so the rationale doesn't have to be re-derived.
 
-### `_update_sync` sentinel collision (`subgrove:604`, `subgrove:620`)
+### `_update_sync` sentinel collision (`subgrove:630–638`)
 
-The sentinel pre-clean is `git update-ref -d "$sync_ref" 2>/dev/null || true`. If a user happens to have a real branch named `_update_sync` in a submodule, `cmd_update` deletes it without warning. The leading-underscore name signals reserved-internal use, and `test_update.sh::update_sentinel_pre` exercises the cleanup path — but the test seeds the sentinel itself, so it doesn't surface "the user's pre-existing branch was their work."
+`cmd_update` stages `origin/main` under a transient `refs/heads/_update_sync` in each main-worktree submodule git dir. The defensive pre-clean used to `update-ref -d` that ref unconditionally, which would silently delete a user's real branch of the same name. Now the pre-clean deletes it **only when it is reachable from `refs/remotes/origin/main`** — the state any stale sentinel must be in, since it was written pointing at a past `origin/main`. A ref carrying independent work is not reachable, so that submodule is skipped with a warn and the branch is left intact.
 
-**Why not a real violation:** the name is deliberately unusual; a real user collision is implausible. **If hardened:** check whether the pre-existing ref points at `origin/main` before deleting (the only legitimate state for a sentinel); refuse otherwise.
+Reachability (`merge-base --is-ancestor`) rather than strict equality: a sentinel left by an interrupted run, after `origin/main` later advanced, points at the *old* `origin/main` and is an ancestor of the current one — still recognized as ours and cleaned, rather than wedging recovery. `test_update.sh::update_sentinel_user_branch` forges such a user branch (a child of `main`, unreachable from `origin/main`) and pins that it survives while an un-collided submodule still updates; `update_sentinel_pre` continues to pin the stale-sentinel cleanup path.
 
-### `remove` preservation-fetch failure path (`subgrove:332–337`)
+### `remove` preservation-fetch failure (`subgrove:348–358`)
 
-If the preservation fetch fails (rare — same machine, same filesystem), the user gets a `warn:` line and `rm -rf` proceeds in the next phase. Combined with `-f`, this can take both the dirty edits *and* the user's feat-branch commits with it. No test exercises this failure mode.
+`cmd_remove` fetches each touched submodule's `feat/<name>` into the main-worktree submodule git dir before `git worktree prune` wipes the per-worktree storage. If that fetch fails, the commits exist only in the about-to-be-removed worktree. The failure path used to `warn:` and let `rm -rf` proceed — losing the commits, and (under `-f`) the dirty edits too. Now a preservation-fetch failure is an `err` that aborts **before any removal**: `-f` still bypasses the cleanliness gate but never this preservation gate.
 
-**Why not a real violation:** the fetch is between two paths on the same disk; failure modes are exotic (permissions, disk full, filesystem corruption). The user is informed via warning. **If hardened:** treat preservation-fetch failure as an abort condition; `-f` still bypasses the cleanliness gate but not the preservation gate.
+`test_remove.sh::remove_preserve_fetch_fail` forces the fetch to fail (a `feat` branch in the main submodule is a directory/file conflict against creating `refs/heads/feat/<name>`) and pins that the worktree and its feat-branch commits survive the aborted `remove -f`.
 
-### `_rollback_new` deletes a branch the user might have committed to (`subgrove:56–65`)
+### `_rollback_new` branch with build-chain commits (`subgrove:57–79`)
 
-The trap fires on any `cmd_new` exit between worktree-create and end-of-`cmd_new`. The branch deleted is the one the script just created, but if the build chain commits to that branch (atypical — `BUILD_CMD` is supposed to be idempotent setup, not commit-generating) and then fails, those commits would be lost.
+`_rollback_new` removes the worktree and deletes its parent feat branch on any failed `cmd_new`. If an atypical build chain committed onto that branch before failing, an unconditional `git branch -D` would lose the commits. Now the branch's SHA at `git worktree add` time is captured (`ROLLBACK_BR_SHA`, set at `subgrove:222`); the rollback deletes the branch **only if it is still at that SHA**, and otherwise leaves it in place with a warn. The worktree dir is still removed, so a retry of the same name errs on the existing branch rather than trampling the work.
 
-**Why not a real violation:** `BUILD_CMD` committing to git is an abuse of the configuration knob, not a documented use case. **If hardened:** before `git branch -D`, check whether the branch tip differs from the SHA the script left it at right after `git worktree add`; if so, skip the deletion and warn instead.
+`test_new.sh::new_rollback_committed` drives a build chain that commits on the parent then fails, and pins that the branch survives the rollback at the advanced commit.

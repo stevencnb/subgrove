@@ -195,3 +195,38 @@ assert_state_eq sm-b "$main_sm_b_state"
 assert_state_eq .worktree/feat-y      "$peer_parent_state"
 assert_state_eq .worktree/feat-y/sm-b "$peer_sm_b_state"
 cleanup_fixture
+
+# --- case: pre-existing _update_sync is a USER branch (not a stale sentinel) ---
+# The defensive pre-clean must NOT delete a real branch named _update_sync.
+# A stale sentinel was written pointing at origin/main, so it's reachable from
+# the current origin/main; a user branch with independent work is not. Here
+# main super's sm-a has such a user branch (forged as a child of main, so
+# unreachable from origin/main) → sm-a is skipped and the branch preserved,
+# while sm-b (no collision, origin advanced) still updates — proving the run
+# continues past the skip.
+mkfixture_local update_sentinel_user_branch
+cd "$FIXTURE_SUPER"
+./subgrove new feat-y >out 2>&1
+# Forge _update_sync at a commit NOT reachable from origin/main (a child of
+# main), without moving main. Same commit-tree idiom as update_peer_diverged.
+forged_sha=$(
+    cd sm-a
+    new_sha="$(git commit-tree -m user-work -p main "$(git rev-parse main^{tree})")"
+    git update-ref refs/heads/_update_sync "$new_sha"
+    echo "$new_sha"
+)
+peer_sm_a_main_before="$(git -C .worktree/feat-y/sm-a rev-parse main)"
+# sm-b has no collision; advance its origin so it actually updates.
+commit_one "$FIXTURE_ROOT/sm-b" "upstream sm-b"
+new_sm_b="$(git -C "$FIXTURE_ROOT/sm-b" rev-parse main)"
+./subgrove update feat-y >out 2>&1
+# sm-a skipped; its user _update_sync branch still at the forged SHA.
+assert_grep out "sm-a.*not a stale sentinel"
+assert_branch_at sm-a _update_sync "$forged_sha"
+# sm-a's peer main did NOT move (skipped).
+assert_branch_at .worktree/feat-y/sm-a main "$peer_sm_a_main_before"
+# sm-b: no collision, origin advanced → peer main FF'd (run continued).
+assert_branch_at .worktree/feat-y/sm-b main "$new_sm_b"
+# Summary: 1 updated (sm-b), 1 skipped (sm-a).
+assert_grep out "Updated 1 submodule main\(s\); 1 skipped"
+cleanup_fixture

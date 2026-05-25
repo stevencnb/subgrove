@@ -278,6 +278,35 @@ git commit --quiet -m "configure COPY_TO_NEW_WORKTREE with missing item"
 assert_file_absent .worktree/feat-skip/.nonexistent-file
 cleanup_fixture
 
+# --- case: rollback keeps a branch that gained commits ---
+# If the build chain commits onto the parent feat branch and then fails,
+# _rollback_new must NOT delete the branch — those commits would be lost. The
+# worktree dir is still removed; the branch survives, so a retry errs on
+# "already exists" rather than trampling the work. BUILD_CMD runs with cwd
+# $wt/sm-a, so `git -C ..` operates on the parent worktree (HEAD on feat/feat-x).
+mkfixture_local new_rollback_committed
+cd "$FIXTURE_SUPER"
+cat > .subgroverc <<'EOF'
+BUILD_CHAIN=(sm-a)
+BUILD_CMD="git -C .. commit --allow-empty -m wip-on-parent && false"
+COPY_TO_NEW_WORKTREE=()
+BRANCH_PREFIX="feat/"
+EOF
+git add .subgroverc
+git commit --quiet -m "build chain that commits on the parent then fails"
+base_sha="$(git rev-parse main)"
+new_failed=0
+./subgrove new feat-x >out 2>&1 || new_failed=1
+[[ $new_failed -eq 1 ]] || fail "expected new to fail when build chain fails"
+# Worktree torn down...
+assert_file_absent .worktree/feat-x
+# ...but the branch survived because it advanced past its creation SHA.
+assert_branch_at . feat/feat-x
+assert_commits_ahead . main feat/feat-x 1
+assert_grep out "advanced past its creation point"
+assert_ne "$base_sha" "$(git rev-parse feat/feat-x)" "feat branch should have advanced"
+cleanup_fixture
+
 # --- case: touch= with nonexistent submodule name refused ---
 mkfixture_local new_touch_invalid
 cd "$FIXTURE_SUPER"

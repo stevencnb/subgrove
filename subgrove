@@ -53,13 +53,27 @@ info() { echo ">>> $*"; }
 # matter where in the call stack the failure originated.
 ROLLBACK_WT=""
 ROLLBACK_BR=""
+ROLLBACK_BR_SHA=""
 _rollback_new() {
     local rc=$?
     if [[ -n "$ROLLBACK_WT" ]]; then
         echo ">>> rolling back partial worktree at $ROLLBACK_WT" >&2
         rm -rf "$ROLLBACK_WT"
         git -C "$SCRIPT_DIR" worktree prune 2>/dev/null || true
-        [[ -n "$ROLLBACK_BR" ]] && git -C "$SCRIPT_DIR" branch -D "$ROLLBACK_BR" 2>/dev/null
+        if [[ -n "$ROLLBACK_BR" ]]; then
+            # Don't delete the branch if it advanced past where `git worktree
+            # add` left it: an atypical build chain that committed onto the
+            # parent feat branch before failing would otherwise lose that work.
+            # The worktree dir is still removed; a retry of the same name then
+            # errs on the existing branch rather than trampling the commits.
+            local cur_sha
+            cur_sha="$(git -C "$SCRIPT_DIR" rev-parse --verify --quiet "refs/heads/$ROLLBACK_BR" 2>/dev/null || true)"
+            if [[ -n "$cur_sha" && "$cur_sha" != "$ROLLBACK_BR_SHA" ]]; then
+                echo ">>> branch $ROLLBACK_BR advanced past its creation point; left in place (git branch -D $ROLLBACK_BR to discard)" >&2
+            else
+                git -C "$SCRIPT_DIR" branch -D "$ROLLBACK_BR" 2>/dev/null || true
+            fi
+        fi
     fi
     exit "$rc"
 }
@@ -205,6 +219,7 @@ cmd_new() {
     # doesn't trip on residue. Disarmed at end of cmd_new on success.
     ROLLBACK_WT="$wt_path"
     ROLLBACK_BR="$branch"
+    ROLLBACK_BR_SHA="$(git -C "$SCRIPT_DIR" rev-parse --verify --quiet "refs/heads/$branch" 2>/dev/null || true)"
     trap _rollback_new EXIT INT TERM
 
     for item in "${COPY_TO_NEW_WORKTREE[@]}"; do
@@ -266,6 +281,7 @@ cmd_new() {
     # Disarm rollback — cmd_new completed successfully.
     ROLLBACK_WT=""
     ROLLBACK_BR=""
+    ROLLBACK_BR_SHA=""
     trap - EXIT INT TERM
 
     cat <<EOF
@@ -333,7 +349,13 @@ cmd_remove() {
                 "+refs/heads/$branch_to_preserve:refs/heads/$branch_to_preserve" 2>/dev/null; then
             preserved=$((preserved + 1))
         else
-            echo "    warn: $sm: failed to preserve refs/heads/$branch_to_preserve"
+            # Abort before the rm -rf below rather than warn-and-continue: the
+            # feat branch's commits live only in the worktree's submodule git
+            # dir until this fetch copies them out, so proceeding would destroy
+            # them. -f bypasses the cleanliness gate, never this preservation gate.
+            err "$sm: failed to preserve refs/heads/$branch_to_preserve into main worktree — aborting before removal so its commits aren't lost.
+        The feature branch still lives in $sm_path. Recover it, then re-run remove:
+            git -C $main_sm_path fetch $sm_path '+refs/heads/$branch_to_preserve:refs/heads/$branch_to_preserve'"
         fi
     done < <(list_all_submodules)
     if [[ "$preserved" -gt 0 ]]; then
@@ -600,8 +622,20 @@ cmd_update() {
             skipped=$((skipped + 1))
             continue
         fi
-        # Pre-clean defensively in case a prior interrupted run left it.
-        git -C "$main_sm_path" update-ref -d "$sync_ref" 2>/dev/null || true
+        # Pre-clean defensively in case a prior interrupted run left it — but
+        # never clobber a user's real branch that happens to be named
+        # _update_sync. A stale sentinel was written pointing at origin/main, so
+        # it is reachable from the current origin/main; a user branch carrying
+        # independent work is not.
+        if git -C "$main_sm_path" rev-parse --verify --quiet "$sync_ref" >/dev/null 2>&1; then
+            if git -C "$main_sm_path" merge-base --is-ancestor "$sync_ref" refs/remotes/origin/main 2>/dev/null; then
+                git -C "$main_sm_path" update-ref -d "$sync_ref"
+            else
+                echo "    warn: $sm — refs/heads/_update_sync exists and is not reachable from origin/main (not a stale sentinel); skipped to avoid clobbering it"
+                skipped=$((skipped + 1))
+                continue
+            fi
+        fi
         git -C "$main_sm_path" update-ref "$sync_ref" refs/remotes/origin/main
 
         if git -C "$peer_sm" fetch --quiet "$main_sm_path" \

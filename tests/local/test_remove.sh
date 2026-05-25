@@ -270,3 +270,34 @@ assert_file_exists .worktree/feat-x
 [[ "$(git -C .worktree/feat-x/sm-b rev-parse HEAD)" == "$sm_b_recorded_before" ]] \
     || fail "sm-b HEAD doesn't match the original recorded SHA after recreate"
 cleanup_fixture
+
+# --- case: preservation-fetch failure aborts before rm -rf (even under -f) ---
+# If the fetch that preserves feat/<name> into main super's submodule fails,
+# remove must abort rather than warn-and-rm: the branch's commits live only in
+# the worktree's submodule git dir until the fetch copies them out. -f bypasses
+# the cleanliness gate but NOT this preservation gate.
+mkfixture_local remove_preserve_fetch_fail
+cd "$FIXTURE_SUPER"
+./subgrove new feat-x >out 2>&1
+# Real work on the worktree's sm-a feat branch — what would be lost.
+commit_one .worktree/feat-x/sm-a "work on feat-x sm-a"
+sm_a_feat="$(git -C .worktree/feat-x/sm-a rev-parse feat/feat-x)"
+# Dirty the worktree so -f is required (proving -f doesn't bypass preservation).
+echo "dirty" >> .worktree/feat-x/README
+# Force the preservation fetch to fail: a branch named `feat` in main super's
+# sm-a is a directory/file conflict against creating refs/heads/feat/feat-x, so
+# the fetch errors. Stands in for any real fetch failure (disk full, perms,
+# corruption) without engineering one.
+git -C sm-a branch feat main
+state_wt_sm_a="$(snapshot_state .worktree/feat-x/sm-a)"
+if ./subgrove remove feat-x -f >out 2>&1; then
+    fail "expected remove to abort on preservation-fetch failure"
+fi
+# Nothing destroyed: worktree still present, the feat commit still in sm-a.
+assert_file_exists .worktree/feat-x
+assert_branch_at .worktree/feat-x/sm-a feat/feat-x "$sm_a_feat"
+assert_state_eq .worktree/feat-x/sm-a "$state_wt_sm_a"
+# Err names the failed preservation; the removal info line never fired.
+assert_grep out "sm-a: failed to preserve"
+assert_grep_v out "Removing worktree at"
+cleanup_fixture
