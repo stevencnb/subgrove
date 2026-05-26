@@ -136,6 +136,14 @@ done
 mkdir -p "$SUBGROVE_TEST_FIXTURES_DIR"
 touch "$SUBGROVE_TEST_FIXTURES_DIR/.subgrove-test-fixtures"
 
+# Rebuild the single `subgrove` script from its modular source (lib/init.sh)
+# before any fixture symlinks it, so the suite always exercises current
+# source. A stale committed subgrove then surfaces as a working-tree change.
+if [[ -f "$SUBGROVE_REPO_ROOT/build.sh" ]]; then
+    bash "$SUBGROVE_REPO_ROOT/build.sh" >/dev/null \
+        || { echo "tests: build.sh failed" >&2; exit 1; }
+fi
+
 tests=()
 for tier in local local-no-sm; do
     for t in "$TESTS_DIR"/"$tier"/test_*.sh; do

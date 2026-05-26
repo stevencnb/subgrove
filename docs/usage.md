@@ -4,17 +4,25 @@
 
 ## Setup
 
-1. Place `subgrove` at the superproject root and make it executable. The script expects to live next to the superproject's `.gitmodules`; running it from anywhere else won't find the submodule list.
+1. Install `subgrove` on your `$PATH` (`brew install StevenChangZH/tap/subgrove`, or drop the script into a `$PATH` directory). It discovers the superproject from your current directory via `git rev-parse --show-toplevel`, so run it from **inside** the main worktree — any subdirectory works, like `git`. It refuses inside a linked worktree.
 
-2. Add `.worktree/` to the superproject's `.gitignore`. `subgrove` refuses to run otherwise.
+2. From the superproject root, run the guided setup:
 
    ```bash
-   echo '.worktree/' >> .gitignore && git add .gitignore && git commit -m 'chore: ignore worktrees'
+   subgrove init
    ```
 
-3. Create `.subgroverc` at the superproject root from [`.subgroverc.example`](../.subgroverc.example). See [Configuration](#configuration) below for the schema. The script runs with all-empty defaults if no config is present — that's enough for a no-build, no-copy workflow.
+   This writes `.subgroverc`, adds `.worktree/` to `.gitignore` (and creates the directory so the ignore check matches), and is reconfigure-aware — re-run any time; it backs up the previous `.subgroverc`. Use `subgrove init --defaults` for a non-interactive run.
+
+3. Prefer to configure by hand? `subgrove` sources `.subgroverc` from the superproject root if present, and runs with all-empty defaults otherwise (enough for a no-build, no-copy workflow). Copy [`.subgroverc.example`](../.subgroverc.example) — see [Configuration](#configuration) for the schema — and add `.worktree/` to `.gitignore` yourself, since `subgrove` refuses to run otherwise.
 
 ## Commands
+
+### `subgrove init`
+
+Guided, one-time setup for a superproject. Prompts for `BRANCH_PREFIX`, which submodules to build (`BUILD_CHAIN`, offered from the detected `.gitmodules` list), `BUILD_CMD` (only if a chain is selected), and `COPY_TO_NEW_WORKTREE`, then writes a commented `.subgroverc`. Also ensures `.worktree/` is gitignored and present on disk so the first `new` passes the ignore check.
+
+Reconfigure-aware: re-running loads the existing `.subgroverc` as the prompt defaults and backs the old file up to `.subgroverc.bak`. Non-interactive (`--defaults` / `-y`, or any non-TTY stdin) writes defaults without prompting, so it's safe in scripts and CI.
 
 ### `subgrove new <name>`
 
@@ -78,6 +86,10 @@ Wraps `git worktree list`. No subgrove-specific formatting.
 
 Print usage.
 
+### `subgrove --version`
+
+Print the version (`subgrove X.Y.Z`). Like `help`, it does no repo discovery, so it works outside a git repo.
+
 ## Workflows
 
 ### Create a feature
@@ -122,7 +134,7 @@ The `git submodule foreach 'git rebase main'` line is deliberately written witho
 | `COPY_TO_NEW_WORKTREE` | bash array | `()` | Files/dirs in main worktree to copy into new worktrees. |
 | `BRANCH_PREFIX` | string | `feat/` | Prefix for feature branch names. Include the trailing separator. |
 
-See [`.subgroverc.example`](../.subgroverc.example) for the template.
+Generate this file with `subgrove init` (reconfigure-safe), or see [`.subgroverc.example`](../.subgroverc.example) for the template to copy by hand.
 
 ## Gotchas
 
@@ -134,6 +146,7 @@ See [`.subgroverc.example`](../.subgroverc.example) for the template.
 - **Submodule pointer drift in parent:** bumping a submodule SHA on a feat branch makes the parent feat branch record a different submodule SHA than `main`. Normal; merging carries the SHA bump along with the code.
 - **`origin/main` staleness in peers when `push=false`:** without `push=true`, peer worktrees' `refs/remotes/origin/main` is *not* updated. Their `refs/heads/main` *is* (merge step 8). For most workflows this is fine — `refs/heads/main` is what `git rebase main` consults. Run `subgrove update <peer>` if you need the remote-tracking ref current.
 - **Stashing across submodule changes:** if `git status` shows `M <submodule>`, don't `git stash` to clear the dirty-check. The stash captures an old SHA delta that re-applies as a revert after merge advances HEAD past it. Commit or drop those changes instead.
+- **`.subgroverc` is sourced from the repo you're in:** subgrove discovers the superproject from your current directory and sources that repo's `.subgroverc` as shell. Running it inside a repo you don't trust executes that repo's config (and, via `new`, its build chain) — the same trust you already extend by building the project. Don't run subgrove in untrusted repos.
 
 ## When to reach for what
 

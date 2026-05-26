@@ -9,6 +9,7 @@
 # root; see .subgroverc.example. Design rationale: docs/design/.
 #
 # Usage:
+#   ./subgrove init                          Guided setup: write .subgroverc, gitignore .worktree/.
 #   ./subgrove new <name>                    Create .worktree/<name>/, branch
 #                                            <prefix><name> in parent + every
 #                                            submodule, run BUILD_CHAIN.
@@ -27,23 +28,21 @@
 #                                            needs to catch up without going through merge propagation.
 #   ./subgrove list                          Show worktrees and their feature branches.
 #   ./subgrove help                          Show this help.
+#   ./subgrove --version                     Print the version.
 
 set -eo pipefail   # no -u: macOS bash 3.2 trips on empty-array expansion
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+VERSION="0.1.0"
 WORKTREES_DIR=".worktree"
+ROOT=""   # superproject root; discover_root sets this per-command (git toplevel)
 
-# Defaults; overridden by .subgroverc next to this script (the superproject
-# root). Each value is documented in .subgroverc.example.
+# Defaults; overridden by the superproject's .subgroverc, which discover_root
+# sources once the repo root is known. Each value is documented in
+# .subgroverc.example.
 BUILD_CHAIN=()
 BUILD_CMD="./init.sh && ./build.sh"
 COPY_TO_NEW_WORKTREE=()
 BRANCH_PREFIX="feat/"
-
-if [[ -f "$SCRIPT_DIR/.subgroverc" ]]; then
-    # shellcheck source=/dev/null
-    . "$SCRIPT_DIR/.subgroverc"
-fi
 
 err() { echo "Error: $*" >&2; exit 1; }
 info() { echo ">>> $*"; }
@@ -59,7 +58,7 @@ _rollback_new() {
     if [[ -n "$ROLLBACK_WT" ]]; then
         echo ">>> rolling back partial worktree at $ROLLBACK_WT" >&2
         rm -rf "$ROLLBACK_WT"
-        git -C "$SCRIPT_DIR" worktree prune 2>/dev/null || true
+        git -C "$ROOT" worktree prune 2>/dev/null || true
         if [[ -n "$ROLLBACK_BR" ]]; then
             # Don't delete the branch if it advanced past where `git worktree
             # add` left it: an atypical build chain that committed onto the
@@ -67,11 +66,11 @@ _rollback_new() {
             # The worktree dir is still removed; a retry of the same name then
             # errs on the existing branch rather than trampling the commits.
             local cur_sha
-            cur_sha="$(git -C "$SCRIPT_DIR" rev-parse --verify --quiet "refs/heads/$ROLLBACK_BR" 2>/dev/null || true)"
+            cur_sha="$(git -C "$ROOT" rev-parse --verify --quiet "refs/heads/$ROLLBACK_BR" 2>/dev/null || true)"
             if [[ -n "$cur_sha" && "$cur_sha" != "$ROLLBACK_BR_SHA" ]]; then
                 echo ">>> branch $ROLLBACK_BR advanced past its creation point; left in place (git branch -D $ROLLBACK_BR to discard)" >&2
             else
-                git -C "$SCRIPT_DIR" branch -D "$ROLLBACK_BR" 2>/dev/null || true
+                git -C "$ROOT" branch -D "$ROLLBACK_BR" 2>/dev/null || true
             fi
         fi
     fi
@@ -82,6 +81,7 @@ usage() {
     cat <<'EOF'
 subgrove - parallel feature worktrees for a git superproject with submodules
 
+  ./subgrove init                          Guided setup: write .subgroverc, gitignore .worktree/.
   ./subgrove new <name>                    Create .worktree/<name>/, branch
                                            <prefix><name> in parent + every
                                            submodule, run BUILD_CHAIN.
@@ -100,6 +100,7 @@ subgrove - parallel feature worktrees for a git superproject with submodules
                                            needs to catch up without going through merge propagation.
   ./subgrove list                          Show worktrees and their feature branches.
   ./subgrove help                          Show this help.
+  ./subgrove --version                     Print the version.
 
 See docs/design/ for design rationale, docs/usage.md for the long-form reference.
 EOF
@@ -122,6 +123,21 @@ assert_main_worktree() {
     git_dir="$(cd "$git_dir" && pwd)"
     git_common="$(cd "$git_common" && pwd)"
     [[ "$git_dir" == "$git_common" ]] || err "run from the main worktree (currently in a linked worktree)"
+}
+
+# Discover the superproject root from the current directory and load its
+# config. Must run before any command touches the repo, and refuses inside a
+# linked worktree. Sets the global ROOT (git toplevel) and sources
+# $ROOT/.subgroverc over the defaults — so a script on PATH (Homebrew)
+# operates on whatever superproject the user is standing in, not on wherever
+# the script itself happens to live.
+discover_root() {
+    assert_main_worktree
+    ROOT="$(git rev-parse --show-toplevel)" || err "could not determine superproject root"
+    if [[ -f "$ROOT/.subgroverc" ]]; then
+        # shellcheck source=/dev/null
+        . "$ROOT/.subgroverc"
+    fi
 }
 
 assert_worktrees_ignored() {
@@ -163,7 +179,7 @@ parse_kv() {
 # ---- Submodule helpers --------------------------------------------------
 
 list_all_submodules() {
-    git config --file "$SCRIPT_DIR/.gitmodules" --get-regexp 'submodule\..*\.path' | awk '{print $2}'
+    git config --file "$ROOT/.gitmodules" --get-regexp 'submodule\..*\.path' | awk '{print $2}'
 }
 
 # resolve_touch_list VALUE  -> prints submodule paths, one per line
@@ -187,15 +203,15 @@ cmd_new() {
     touch_arg="$(parse_kv touch all "$@")"
     build_arg="$(parse_kv build true "$@")"
 
+    discover_root
+    cd "$ROOT"
+    assert_worktrees_ignored
+
     local branch="${BRANCH_PREFIX}$name"
-    local wt_path="$SCRIPT_DIR/$WORKTREES_DIR/$name"
+    local wt_path="$ROOT/$WORKTREES_DIR/$name"
     local base="main"
     local item sm sm_path module
     local touch_list=()
-
-    cd "$SCRIPT_DIR"
-    assert_main_worktree
-    assert_worktrees_ignored
 
     [[ -e "$wt_path" ]] && err "$wt_path already exists"
     if git rev-parse --verify --quiet "refs/heads/$branch" >/dev/null; then
@@ -219,13 +235,13 @@ cmd_new() {
     # doesn't trip on residue. Disarmed at end of cmd_new on success.
     ROLLBACK_WT="$wt_path"
     ROLLBACK_BR="$branch"
-    ROLLBACK_BR_SHA="$(git -C "$SCRIPT_DIR" rev-parse --verify --quiet "refs/heads/$branch" 2>/dev/null || true)"
+    ROLLBACK_BR_SHA="$(git -C "$ROOT" rev-parse --verify --quiet "refs/heads/$branch" 2>/dev/null || true)"
     trap _rollback_new EXIT INT TERM
 
     for item in "${COPY_TO_NEW_WORKTREE[@]}"; do
-        if [[ -e "$SCRIPT_DIR/$item" ]]; then
+        if [[ -e "$ROOT/$item" ]]; then
             info "Copying $item (untracked)"
-            cp -a "$SCRIPT_DIR/$item" "$wt_path/"
+            cp -a "$ROOT/$item" "$wt_path/"
         fi
     done
 
@@ -235,8 +251,8 @@ cmd_new() {
     # to borrow from main worktree's, saving bandwidth + disk.
     info "Initialising submodules (sharing objects with main worktree where possible)"
     while IFS= read -r sm; do
-        if [[ -d "$SCRIPT_DIR/.git/modules/$sm" ]]; then
-            ( cd "$wt_path" && git submodule update --init --reference "$SCRIPT_DIR/.git/modules/$sm" -- "$sm" ) \
+        if [[ -d "$ROOT/.git/modules/$sm" ]]; then
+            ( cd "$wt_path" && git submodule update --init --reference "$ROOT/.git/modules/$sm" -- "$sm" ) \
                 || err "submodule init failed for $sm"
         else
             ( cd "$wt_path" && git submodule update --init -- "$sm" ) \
@@ -309,10 +325,10 @@ cmd_remove() {
     local force_arg
     force_arg="$(parse_kv force false "$@")"
 
-    local wt_path="$SCRIPT_DIR/$WORKTREES_DIR/$name"
+    discover_root
+    cd "$ROOT"
 
-    cd "$SCRIPT_DIR"
-    assert_main_worktree
+    local wt_path="$ROOT/$WORKTREES_DIR/$name"
     [[ -d "$wt_path" ]] || err "$wt_path does not exist (or is not a directory)"
 
     if [[ "$force_arg" != "true" ]]; then
@@ -343,8 +359,8 @@ cmd_remove() {
         [[ -e "$sm_path/.git" ]] || continue
         git -C "$sm_path" rev-parse --verify --quiet "refs/heads/$branch_to_preserve" >/dev/null 2>&1 \
             || continue
-        main_sm_path="$SCRIPT_DIR/$sm"
-        [[ -d "$SCRIPT_DIR/.git/modules/$sm" ]] || continue
+        main_sm_path="$ROOT/$sm"
+        [[ -d "$ROOT/.git/modules/$sm" ]] || continue
         if git -C "$main_sm_path" fetch --quiet "$sm_path" \
                 "+refs/heads/$branch_to_preserve:refs/heads/$branch_to_preserve" 2>/dev/null; then
             preserved=$((preserved + 1))
@@ -381,11 +397,11 @@ cmd_merge() {
     local push_arg
     push_arg="$(parse_kv push false "$@")"
 
-    local branch="${BRANCH_PREFIX}$name"
-    local wt_path="$SCRIPT_DIR/$WORKTREES_DIR/$name"
+    discover_root
+    cd "$ROOT"
 
-    cd "$SCRIPT_DIR"
-    assert_main_worktree
+    local branch="${BRANCH_PREFIX}$name"
+    local wt_path="$ROOT/$WORKTREES_DIR/$name"
     [[ -d "$wt_path" ]] || err "$wt_path does not exist"
     git rev-parse --verify --quiet "refs/heads/$branch" >/dev/null \
         || err "parent branch '$branch' not found"
@@ -410,10 +426,10 @@ cmd_merge() {
     # Done broadly across every touched submodule, even ones with no commits —
     # uncommitted work in a "no-op" submodule is still work the user could lose.
     info "Checking for uncommitted changes (source + dst)"
-    require_clean "main worktree (parent, dst)"    "$SCRIPT_DIR"
+    require_clean "main worktree (parent, dst)"    "$ROOT"
     require_clean "feature worktree (parent, src)" "$wt_path"
     for sm in "${touched[@]}"; do
-        require_clean "main submodule '$sm' (dst)"    "$SCRIPT_DIR/$sm"
+        require_clean "main submodule '$sm' (dst)"    "$ROOT/$sm"
         require_clean "feature submodule '$sm' (src)" "$wt_path/$sm"
     done
 
@@ -425,7 +441,7 @@ cmd_merge() {
     local feat_sha main_sha linked_sm_path main_sm_path
     for sm in "${touched[@]}"; do
         linked_sm_path="$wt_path/$sm"
-        main_sm_path="$SCRIPT_DIR/$sm"
+        main_sm_path="$ROOT/$sm"
         feat_sha="$(git -C "$linked_sm_path" rev-parse "refs/heads/$branch")"
         main_sha=""
         if git -C "$main_sm_path" rev-parse --verify --quiet refs/heads/main >/dev/null 2>&1; then
@@ -456,7 +472,7 @@ cmd_merge() {
         info "Validating fast-forward feasibility"
         for sm in "${needs_merge[@]}"; do
             linked_sm_path="$wt_path/$sm"
-            main_sm_path="$SCRIPT_DIR/$sm"
+            main_sm_path="$ROOT/$sm"
             [[ -e "$main_sm_path/.git" ]] \
                 || err "submodule '$sm' is not initialized in main worktree at $main_sm_path"
 
@@ -489,7 +505,7 @@ cmd_merge() {
         info "Moving main forward in main worktree's submodules"
         for sm in "${needs_merge[@]}"; do
             linked_sm_path="$wt_path/$sm"
-            main_sm_path="$SCRIPT_DIR/$sm"
+            main_sm_path="$ROOT/$sm"
             feat_sha="$(git -C "$linked_sm_path" rev-parse "refs/heads/$branch")"
             echo "    $sm: main → ${feat_sha:0:12}"
             # checkout -B reattaches HEAD → refs/heads/main, force-moves it to
@@ -509,10 +525,10 @@ cmd_merge() {
     # Submodule git dirs are isolated per parent worktree, so peer worktrees
     # have their own refs/heads/main that would otherwise lag forever. Parent
     # refs are shared, so no parent-side propagation is needed.
-    if [[ ${#needs_merge[@]} -gt 0 ]] && [[ -d "$SCRIPT_DIR/$WORKTREES_DIR" ]]; then
+    if [[ ${#needs_merge[@]} -gt 0 ]] && [[ -d "$ROOT/$WORKTREES_DIR" ]]; then
         local peer_wt peer_name peer_sm peer_count=0 peer_skipped=0
         local propagated=false
-        for peer_wt in "$SCRIPT_DIR/$WORKTREES_DIR"/*; do
+        for peer_wt in "$ROOT/$WORKTREES_DIR"/*; do
             [[ -d "$peer_wt" ]] || continue
             [[ "$peer_wt" == "$wt_path" ]] && continue
             peer_name="$(basename "$peer_wt")"
@@ -526,7 +542,7 @@ cmd_merge() {
                 # No `+`: refuse non-FF rather than clobber a peer's diverged main.
                 # Two distinct failure modes — distinguish via HEAD inspection
                 # so the warning points at the actual cause.
-                if git -C "$peer_sm" fetch "$SCRIPT_DIR/$sm" \
+                if git -C "$peer_sm" fetch "$ROOT/$sm" \
                        refs/heads/main:refs/heads/main 2>/dev/null; then
                     peer_count=$((peer_count + 1))
                 else
@@ -543,7 +559,7 @@ cmd_merge() {
                 # If we're about to push, mirror peer's origin/main too so the
                 # peer's remote-tracking ref doesn't lag the actual origin.
                 if [[ "$push_arg" == "true" ]]; then
-                    git -C "$peer_sm" fetch "$SCRIPT_DIR/$sm" \
+                    git -C "$peer_sm" fetch "$ROOT/$sm" \
                         "+refs/heads/main:refs/remotes/origin/main" 2>/dev/null || true
                 fi
             done
@@ -560,7 +576,7 @@ cmd_merge() {
             info "Pushing updated main branches to origin"
             for sm in "${needs_merge[@]}"; do
                 echo "    pushing $sm main"
-                git -C "$SCRIPT_DIR/$sm" push origin main
+                git -C "$ROOT/$sm" push origin main
             done
             if [[ "$parent_needs_merge" == "true" ]]; then
                 echo "    pushing parent main"
@@ -588,9 +604,10 @@ cmd_update() {
     local name="${1:-}"
     validate_name "$name"
 
-    local wt_path="$SCRIPT_DIR/$WORKTREES_DIR/$name"
-    cd "$SCRIPT_DIR"
-    assert_main_worktree
+    discover_root
+    cd "$ROOT"
+
+    local wt_path="$ROOT/$WORKTREES_DIR/$name"
     [[ -d "$wt_path" ]] || err "$wt_path does not exist"
 
     info "Fetching origin/main in main worktree (parent + submodules)"
@@ -598,8 +615,8 @@ cmd_update() {
         || echo "    warn: parent fetch failed; continuing with local refs"
     local sm
     while IFS= read -r sm; do
-        [[ -e "$SCRIPT_DIR/$sm/.git" ]] || continue
-        git -C "$SCRIPT_DIR/$sm" fetch --quiet origin main \
+        [[ -e "$ROOT/$sm/.git" ]] || continue
+        git -C "$ROOT/$sm" fetch --quiet origin main \
             || echo "    warn: $sm fetch failed; continuing with local refs"
     done < <(list_all_submodules)
 
@@ -609,8 +626,8 @@ cmd_update() {
     while IFS= read -r sm; do
         peer_sm="$wt_path/$sm"
         [[ -e "$peer_sm/.git" ]] || continue
-        main_sm_path="$SCRIPT_DIR/$sm"
-        [[ -d "$SCRIPT_DIR/.git/modules/$sm" ]] || continue
+        main_sm_path="$ROOT/$sm"
+        [[ -d "$ROOT/.git/modules/$sm" ]] || continue
 
         # Source of truth is refs/remotes/origin/main (what we just fetched),
         # NOT refs/heads/main (which the origin fetch never advanced). Local-
@@ -664,10 +681,164 @@ EOF
 }
 
 cmd_list() {
-    cd "$SCRIPT_DIR"
-    assert_main_worktree
+    discover_root
+    cd "$ROOT"
     git worktree list
 }
+
+# >>> generated from lib/init.sh — edit there, then run ./build.sh >>>
+# ---- init wizard --------------------------------------------------------
+#
+# Authored here; build.sh inlines this region into the single `subgrove`
+# script. Edit THIS file, then run ./build.sh to sync. Never sourced at
+# runtime — it is inlined, so it reuses err/info/list_all_submodules/
+# discover_root and the WORKTREES_DIR/BUILD_*/BRANCH_PREFIX defaults from
+# the parent script directly.
+
+# _init_prompt VAR "Question" "default"
+# Reads a line into VAR, falling back to the default on empty input. In
+# non-interactive mode (--defaults or non-TTY stdin) it takes the default
+# without prompting. printf -v is bash 3.1+, fine on macOS bash 3.2. The
+# caller's $_init_noninteractive is visible here via bash dynamic scope.
+_init_prompt() {
+    local __q="$2" __def="$3" __ans
+    if [[ "$_init_noninteractive" == "true" ]]; then
+        printf -v "$1" '%s' "$__def"
+        return
+    fi
+    printf '  %s [%s]: ' "$__q" "$__def" >&2
+    IFS= read -r __ans || __ans=""
+    [[ -z "$__ans" ]] && __ans="$__def"
+    printf -v "$1" '%s' "$__ans"
+}
+
+# _init_emit_array NAME ELEMENTS...  -> prints `NAME=("e1" "e2")` (or `NAME=()`)
+_init_emit_array() {
+    local name="$1"; shift
+    printf '%s=(' "$name"
+    local first=true e
+    for e in "$@"; do
+        if [[ "$first" == "true" ]]; then first=false; else printf ' '; fi
+        printf '"%s"' "$e"
+    done
+    printf ')\n'
+}
+
+# _init_split CSV_OR_WS  -> emits tokens space-separated (comma or whitespace
+# input); "none"/empty yields nothing. Caller word-splits the result.
+_init_split() {
+    local v="$1"
+    [[ "$v" == "none" || -z "$v" ]] && return 0
+    printf '%s' "$v" | tr ',' ' '
+}
+
+cmd_init() {
+    discover_root          # sets ROOT; sources an existing .subgroverc as defaults
+    cd "$ROOT"
+
+    local _init_noninteractive=false
+    case "${1:-}" in
+        -y|--yes|--defaults) _init_noninteractive=true ;;
+    esac
+    [[ -t 0 ]] || _init_noninteractive=true   # piped/CI stdin: never block on a prompt
+
+    local rc="$ROOT/.subgroverc"
+    if [[ -f "$rc" ]]; then
+        info "Reconfiguring — current values shown as [defaults]; Enter keeps them"
+    else
+        info "Setting up .subgroverc for this superproject"
+    fi
+
+    # 1. Branch prefix.
+    _init_prompt BRANCH_PREFIX "Feature branch prefix" "$BRANCH_PREFIX"
+
+    # 2. Build chain — offer the detected submodules by name.
+    local detected=() sm
+    while IFS= read -r sm; do
+        [[ -n "$sm" ]] && detected+=("$sm")
+    done < <(list_all_submodules 2>/dev/null)
+    if [[ ${#detected[@]} -eq 0 ]]; then
+        info "No submodules detected (.gitmodules absent or empty) — BUILD_CHAIN left empty"
+        BUILD_CHAIN=()
+    else
+        info "Detected submodules: ${detected[*]}"
+        local _chain_def="${BUILD_CHAIN[*]}" _chain_ans tok
+        _init_prompt _chain_ans "Submodules to build on 'new' (space-separated, or 'none')" "$_chain_def"
+        BUILD_CHAIN=()
+        for tok in $(_init_split "$_chain_ans"); do
+            BUILD_CHAIN+=("$tok")
+        done
+    fi
+
+    # 3. Build command — only meaningful when there's a chain to build.
+    if [[ ${#BUILD_CHAIN[@]} -gt 0 ]]; then
+        _init_prompt BUILD_CMD "Build command run inside each BUILD_CHAIN module" "$BUILD_CMD"
+    fi
+
+    # 4. Files/dirs copied into each new worktree.
+    local _copy_def="${COPY_TO_NEW_WORKTREE[*]}" _copy_ans citem
+    _init_prompt _copy_ans "Files/dirs copied into each new worktree (space-separated, or 'none')" "$_copy_def"
+    COPY_TO_NEW_WORKTREE=()
+    for citem in $(_init_split "$_copy_ans"); do
+        COPY_TO_NEW_WORKTREE+=("$citem")
+    done
+
+    # Write .subgroverc, backing up any existing one first.
+    if [[ -f "$rc" ]]; then
+        cp "$rc" "$rc.bak"
+        info "Backed up existing .subgroverc to .subgroverc.bak"
+    fi
+    {
+        echo "# subgrove configuration — generated by 'subgrove init'."
+        echo "# Sourced by subgrove from the superproject root. See"
+        echo "# .subgroverc.example for the full schema and notes."
+        echo
+        echo "# Ordered submodule paths to build during 'new' (empty = no auto-build)."
+        _init_emit_array BUILD_CHAIN "${BUILD_CHAIN[@]}"
+        echo
+        echo "# Shell command run inside each BUILD_CHAIN module."
+        printf 'BUILD_CMD="%s"\n' "$BUILD_CMD"
+        echo
+        echo "# Files/dirs under the main worktree copied into each new worktree."
+        _init_emit_array COPY_TO_NEW_WORKTREE "${COPY_TO_NEW_WORKTREE[@]}"
+        echo
+        echo "# Feature branch prefix (include the trailing separator, e.g. \"feat/\")."
+        printf 'BRANCH_PREFIX="%s"\n' "$BRANCH_PREFIX"
+    } > "$rc"
+    info "Wrote $rc"
+
+    # Ensure .worktree/ is gitignored AND present on disk: subgrove's
+    # `git check-ignore -q .worktree` matches the trailing-slash pattern only
+    # when the directory actually exists.
+    if ! git check-ignore -q "$WORKTREES_DIR" 2>/dev/null; then
+        local _gi_ans
+        if [[ "$_init_noninteractive" == "true" ]]; then
+            _gi_ans="y"
+        else
+            printf '  %s/ must be gitignored for subgrove to run. Add it now? [Y/n]: ' "$WORKTREES_DIR" >&2
+            IFS= read -r _gi_ans || _gi_ans="y"
+        fi
+        case "$_gi_ans" in
+            ""|y|Y|yes|Yes)
+                printf '%s/\n' "$WORKTREES_DIR" >> "$ROOT/.gitignore"
+                git add .gitignore 2>/dev/null || true
+                info "Added $WORKTREES_DIR/ to .gitignore (staged)"
+                ;;
+            *)
+                info "Left .gitignore alone — subgrove refuses to run until $WORKTREES_DIR/ is ignored"
+                ;;
+        esac
+    fi
+    mkdir -p "$ROOT/$WORKTREES_DIR"
+
+    cat <<EOF
+
+subgrove is configured for $ROOT
+  Config: $rc
+  Next:   subgrove new <feature>
+EOF
+}
+# <<< end generated <<<
 
 # ---- Dispatch -----------------------------------------------------------
 
@@ -675,13 +846,15 @@ main() {
     local subcmd="${1:-help}"
     shift 2>/dev/null || true
     case "$subcmd" in
-        new)             cmd_new "$@" ;;
-        merge)           cmd_merge "$@" ;;
-        remove|rm)       cmd_remove "$@" ;;
-        update)          cmd_update "$@" ;;
-        list|ls)         cmd_list ;;
-        help|-h|--help)  usage ;;
-        *)               usage; exit 1 ;;
+        new)                cmd_new "$@" ;;
+        init)               cmd_init "$@" ;;
+        merge)              cmd_merge "$@" ;;
+        remove|rm)          cmd_remove "$@" ;;
+        update)             cmd_update "$@" ;;
+        list|ls)            cmd_list ;;
+        help|-h|--help)     usage ;;
+        version|--version)  echo "subgrove $VERSION" ;;
+        *)                  usage; exit 1 ;;
     esac
 }
 

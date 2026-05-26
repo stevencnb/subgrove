@@ -18,39 +18,50 @@ What's left after subtracting those — _per-feature worktree × isolated submod
 
 ## Install
 
-Drop `subgrove` at your superproject root (the script expects to live next to your `.gitmodules`):
+Via [Homebrew](https://brew.sh) (a personal tap):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/<owner>/subgrove/main/subgrove -o subgrove
-chmod +x subgrove
+brew install StevenChangZH/tap/subgrove
 ```
 
-Copy [`.subgroverc.example`](.subgroverc.example) to `.subgroverc` next to it and edit the values for your project:
+Or grab the single self-contained script and put it on your `$PATH`:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/<owner>/subgrove/main/.subgroverc.example -o .subgroverc
-$EDITOR .subgroverc
+curl -fsSL https://raw.githubusercontent.com/StevenChangZH/subgrove/main/subgrove -o subgrove
+chmod +x subgrove && sudo mv subgrove /usr/local/bin/   # or any dir on $PATH
 ```
 
-Add `.worktree/` to your superproject's `.gitignore` — subgrove refuses to run otherwise.
+`subgrove` discovers the superproject from your current directory (like `git`), so you run it from **inside** the main worktree — it no longer needs to live next to your `.gitmodules`.
+
+Then set up the per-project config from your superproject root:
+
+```bash
+subgrove init        # guided: writes .subgroverc and gitignores .worktree/
+```
+
+`init` is reconfigure-aware — re-run it any time; it backs up the previous `.subgroverc`. Prefer to hand-edit? Copy [`.subgroverc.example`](.subgroverc.example) to `.subgroverc` at the superproject root instead. (subgrove refuses to run until `.worktree/` is gitignored, which `init` handles for you.)
 
 ## Quickstart
 
 ```bash
-./subgrove new my-feature             # create .worktree/my-feature/, branch feat/my-feature
+cd /path/to/your/superproject         # run subgrove from inside the repo (like git)
+subgrove init                         # one-time: write .subgroverc, gitignore .worktree/
+
+subgrove new my-feature               # create .worktree/my-feature/, branch feat/my-feature
 cd .worktree/my-feature
 # ... do work, commit ...
 
-./subgrove merge my-feature           # FF-merge to main everywhere it needs to land
-./subgrove merge my-feature push=true # ... and push origin/main
+subgrove merge my-feature             # FF-merge to main everywhere it needs to land
+subgrove merge my-feature push=true   # ... and push origin/main
 
-./subgrove remove my-feature          # tear down the worktree (branches retained)
+subgrove remove my-feature            # tear down the worktree (branches retained)
 ```
 
 ## Commands
 
 | Command                               | Purpose                                                           |
 | ------------------------------------- | ----------------------------------------------------------------- |
+| `subgrove init`                       | Guided setup: write `.subgroverc`, gitignore `.worktree/`.        |
 | `subgrove new <name>`                 | Create a worktree; branch parent + submodules; run `BUILD_CHAIN`. |
 | `subgrove new <name> touch=<sm>,<sm>` | Branch only the listed submodules.                                |
 | `subgrove new <name> touch=none`      | Parent-only branch; submodules detached.                          |
@@ -62,6 +73,7 @@ cd .worktree/my-feature
 | `subgrove remove <name> -f`           | Force-remove, discarding uncommitted work.                        |
 | `subgrove list`                       | List worktrees.                                                   |
 | `subgrove help`                       | Show usage.                                                       |
+| `subgrove --version`                  | Print the version.                                                |
 
 Long-form reference: [docs/usage.md](docs/usage.md).
 
@@ -76,7 +88,7 @@ COPY_TO_NEW_WORKTREE=(.claude)           # items copied from main → new worktr
 BRANCH_PREFIX="feat/"                    # feature branch prefix
 ```
 
-See [.subgroverc.example](.subgroverc.example).
+Generate it interactively with `subgrove init` (reconfigure-safe), or copy [.subgroverc.example](.subgroverc.example) and edit by hand.
 
 ## Design
 
@@ -89,6 +101,7 @@ The script's complexity is a direct consequence of holding three properties simu
 - [trade-offs.md](docs/design/trade-offs.md) — alternatives considered & rejected
 - [implementation-notes.md](docs/design/implementation-notes.md) — cross-cutting invariants
 - [prior-art.md](docs/design/prior-art.md) — survey of related tools and the gap subgrove fills
+- [distribution.md](docs/design/distribution.md) — repo-root discovery, the single-file build, and Homebrew packaging
 - [testing.md](docs/design/testing.md) — how the test suite is structured (+ [testing-local.md](docs/design/testing-local.md) listing every local test case)
 
 ## Testing
@@ -105,6 +118,10 @@ A real-git test suite lives under `tests/`. No mocks — each scenario builds a 
 Remote tests push to four GitHub repos configured in [`tests/config.sh`](tests/config.sh): three for the with-submodule tier (run `tests/init_remote.sh` once to bootstrap them) and one for the no-submodule tier (`tests/remote-no-sm/` — its fixture lazily bootstraps the baseline on first use, no separate init step). Subsequent test runs reset to the baseline tag rather than rewriting history each time. Fixtures land under `tests/run/` (gitignored).
 
 The patterns the suite uses (pre/post state verification, snapshot equality on refuse, history-ancestor on success, specific err-text and info-line greps, matrix coverage for state-sensitive commands) are documented in [docs/design/testing.md § Test design principles](docs/design/testing.md#test-design-principles). Adding new tests should follow those.
+
+## Development
+
+`subgrove` is a single distributed script assembled from modular source: the `init` wizard lives in [`lib/init.sh`](lib/init.sh) and is inlined into `subgrove` by [`build.sh`](build.sh). Edit `lib/init.sh`, then run `./build.sh` to sync (the test suite rebuilds automatically before running; `./build.sh --check` flags drift). Everything else is edited directly in `subgrove`.
 
 ## License
 

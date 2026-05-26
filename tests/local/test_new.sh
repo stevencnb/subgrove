@@ -347,22 +347,26 @@ assert_file_exists .worktree/feat-multi/sm-b/.built
     || fail "sm-b should be built 2nd (got: $(cat .worktree/feat-multi/sm-b/.built-order))"
 cleanup_fixture
 
-# --- case: invocation from non-default cwd via absolute path ---
-# Every other scenario invokes `./subgrove` from inside FIXTURE_SUPER, so a
-# `$PWD`-vs-`SCRIPT_DIR` confusion bug would be invisible. Invoke via the
-# absolute path from a different cwd to pin that subgrove uses
-# `dirname $0` (→ FIXTURE_SUPER) consistently, not the caller's cwd.
+# --- case: discovery keys off the CWD's repo, not the script's location ---
+# Post-refactor contract (the inverse of the old one): the script no longer
+# self-locates via `dirname $0`; it discovers the superproject from the CWD
+# (`git rev-parse --show-toplevel`). Invoked with the CWD outside any git
+# repo, `new` refuses with "not in a git repo" and leaves the script's own
+# repo untouched. The positive case — script on PATH outside the repo, CWD
+# inside it — lives in test_path_invocation.sh.
 mkfixture_local new_from_other_cwd
 sg="$FIXTURE_SUPER/subgrove"
-cd "$FIXTURE_ROOT"   # NOT $FIXTURE_SUPER — a peer dir
-"$sg" new feat-x >out 2>&1
-# Worktree was created in the FIXTURE's super, not in cwd ($FIXTURE_ROOT).
-[[ -d "$FIXTURE_SUPER/.worktree/feat-x" ]] \
-    || fail "worktree should land under FIXTURE_SUPER, not the caller's cwd"
-[[ ! -e "$FIXTURE_ROOT/.worktree" ]] \
-    || fail "worktree should NOT land in the caller's cwd"
-assert_head_on "$FIXTURE_SUPER/.worktree/feat-x" feat/feat-x
+outside="$(mktemp -d "${TMPDIR:-/tmp}/subgrove-outside.XXXXXX")"
+cd "$outside"
+if "$sg" new feat-x >out 2>&1; then
+    cd "$FIXTURE_SUPER"; rm -rf "$outside"
+    fail "new should refuse when the CWD is not inside a git repo"
+fi
+assert_grep out "not in a git repo"
+[[ ! -e "$FIXTURE_SUPER/.worktree/feat-x" ]] \
+    || fail "new must not touch the script's repo when run from outside it"
 cd "$FIXTURE_SUPER"
+rm -rf "$outside"
 cleanup_fixture
 
 # --- case: dirty main super doesn't block new (and dirty is preserved) ---
