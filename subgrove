@@ -9,26 +9,26 @@
 # root; see .subgroverc.example. Design rationale: docs/design/.
 #
 # Usage:
-#   ./subgrove init                          Guided setup: write .subgroverc, gitignore .worktree/.
-#   ./subgrove new <name>                    Create .worktree/<name>/, branch
+#   subgrove init                          Guided setup: write .subgroverc, gitignore .worktree/.
+#   subgrove new <name>                    Create .worktree/<name>/, branch
 #                                            <prefix><name> in parent + every
 #                                            submodule, run BUILD_CHAIN.
-#   ./subgrove new <name> touch=<sm>,<sm>    Branch only the listed submodules.
-#   ./subgrove new <name> touch=none         Parent-only branch; submodules detached.
-#   ./subgrove new <name> build=false        Skip BUILD_CHAIN (run manually later).
-#   ./subgrove merge <name>                  FF-merge <prefix><name> back to main in every
+#   subgrove new <name> touch=<sm>,<sm>    Branch only the listed submodules.
+#   subgrove new <name> touch=none         Parent-only branch; submodules detached.
+#   subgrove new <name> build=false        Skip BUILD_CHAIN (run manually later).
+#   subgrove merge <name>                  FF-merge <prefix><name> back to main in every
 #                                            touched submodule + parent. Refuses if anything
 #                                            is dirty or non-FF. Worktree is never removed —
 #                                            use `remove` separately when you're done.
-#   ./subgrove merge <name> push=true        Also push merged main branches to origin.
-#   ./subgrove remove <name>                 Remove worktree (refuses if dirty; branches remain).
-#   ./subgrove remove <name> -f              Discard uncommitted work and force-remove (force=true).
-#   ./subgrove update <name>                 Fetch origin in main worktree, then FF each submodule's
+#   subgrove merge <name> push=true        Also push merged main branches to origin.
+#   subgrove remove <name>                 Remove worktree (refuses if dirty; branches remain).
+#   subgrove remove <name> -f              Discard uncommitted work and force-remove (force=true).
+#   subgrove update <name>                 Fetch origin in main worktree, then FF each submodule's
 #                                            main in <name>. Manual escape hatch when a peer worktree
 #                                            needs to catch up without going through merge propagation.
-#   ./subgrove list                          Show worktrees and their feature branches.
-#   ./subgrove help                          Show this help.
-#   ./subgrove --version                     Print the version.
+#   subgrove list                          Show worktrees and their feature branches.
+#   subgrove help                          Show this help.
+#   subgrove --version                     Print the version.
 
 set -eo pipefail   # no -u: macOS bash 3.2 trips on empty-array expansion
 
@@ -81,26 +81,21 @@ usage() {
     cat <<'EOF'
 subgrove - parallel feature worktrees for a git superproject with submodules
 
-  ./subgrove init                          Guided setup: write .subgroverc, gitignore .worktree/.
-  ./subgrove new <name>                    Create .worktree/<name>/, branch
-                                           <prefix><name> in parent + every
-                                           submodule, run BUILD_CHAIN.
-  ./subgrove new <name> touch=<sm>,<sm>    Branch only the listed submodules.
-  ./subgrove new <name> touch=none         Parent-only branch; submodules detached.
-  ./subgrove new <name> build=false        Skip BUILD_CHAIN (run manually later).
-  ./subgrove merge <name>                  FF-merge <prefix><name> back to main in every
-                                           touched submodule + parent. Refuses if anything
-                                           is dirty or non-FF. Worktree is never removed —
-                                           use `remove` separately when you're done.
-  ./subgrove merge <name> push=true        Also push merged main branches to origin.
-  ./subgrove remove <name>                 Remove worktree (refuses if dirty; branches remain).
-  ./subgrove remove <name> -f              Discard uncommitted work and force-remove (force=true).
-  ./subgrove update <name>                 Fetch origin in main worktree, then FF each submodule's
-                                           main in <name>. Manual escape hatch when a peer worktree
-                                           needs to catch up without going through merge propagation.
-  ./subgrove list                          Show worktrees and their feature branches.
-  ./subgrove help                          Show this help.
-  ./subgrove --version                     Print the version.
+  subgrove init                          Guided setup: write .subgroverc, gitignore .worktree/.
+  subgrove new <name>                    Create .worktree/<name>/, branch <prefix><name> in
+                                         parent + every submodule, then run BUILD_CHAIN.
+  subgrove new <name> touch=<sm>,<sm>    Branch only the listed submodules.
+  subgrove new <name> touch=none         Parent-only branch; submodules detached.
+  subgrove new <name> build=false        Skip BUILD_CHAIN (run manually later).
+  subgrove merge <name>                  FF-merge <prefix><name> to main in every touched
+                                         submodule + parent. Refuses if dirty or non-FF.
+  subgrove merge <name> push=true        Also push merged main branches to origin.
+  subgrove remove <name>                 Remove worktree (refuses if dirty; branches remain).
+  subgrove remove <name> -f              Discard uncommitted work and force-remove (force=true).
+  subgrove update <name>                 Catch a peer worktree up to origin/main without merging.
+  subgrove list                          Show worktrees and their feature branches.
+  subgrove help                          Show this help.
+  subgrove --version                     Print the version.
 
 See docs/design/ for design rationale, docs/usage.md for the long-form reference.
 EOF

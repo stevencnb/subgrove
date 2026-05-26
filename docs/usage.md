@@ -95,7 +95,7 @@ Print the version (`subgrove X.Y.Z`). Like `help`, it does no repo discovery, so
 ### Create a feature
 
 ```bash
-./subgrove new my-feature
+subgrove new my-feature
 cd .worktree/my-feature
 # ... do work, commit ...
 ```
@@ -104,10 +104,10 @@ cd .worktree/my-feature
 
 ```bash
 # from main worktree
-./subgrove merge my-feature              # FF main everywhere it needs to land
-./subgrove merge my-feature push=true    # ... and push origin/main
+subgrove merge my-feature              # FF main everywhere it needs to land
+subgrove merge my-feature push=true    # ... and push origin/main
 
-./subgrove remove my-feature             # tear down the worktree (branches retained)
+subgrove remove my-feature             # tear down the worktree (branches retained)
 ```
 
 ### Catch a peer worktree up
@@ -116,7 +116,7 @@ When `my-other-feature` was created (or was sitting idle) before someone else's 
 
 ```bash
 # from main worktree
-./subgrove update my-other-feature
+subgrove update my-other-feature
 # then rebase feature branches inside my-other-feature:
 ( cd .worktree/my-other-feature && git submodule foreach 'git rebase main' )
 ```

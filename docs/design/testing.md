@@ -104,7 +104,7 @@ The per-test subshell + per-scenario fixture is the only isolation. No setup/tea
 Per scenario, the lifecycle is:
 
 1. **`mkfixture_local <name>` builds a fresh standalone fixture** at `tests/run/<timestamp>-<pid>-<random>-<name>/`. The fixture is three plain `git init` repos (`sm-a`, `sm-b`, `super`), with the two submodules wired into `super/` via `git submodule add file://…`. A `subgrove` symlink to the script under test is dropped at the super's root, and an empty `.worktree/` directory is pre-created (workaround for subgrove's `git check-ignore` on the trailing-slash pattern). See [testing-local.md](testing-local.md#test-lifecycle) for the full per-step breakdown.
-2. **The test does its work.** `cd $FIXTURE_SUPER`, invoke `./subgrove …`, capture output to a file, run assertions. All git operations are scoped to the fixture — subgrove's `$SCRIPT_DIR` resolves to the fixture (via `dirname $0` of the symlink invocation), so it never touches the surrounding subgrove repo.
+2. **The test does its work.** `cd $FIXTURE_SUPER`, invoke `./subgrove …`, capture output to a file, run assertions. All git operations are scoped to the fixture — subgrove discovers the superproject from the current directory (`git rev-parse --show-toplevel`), which is `$FIXTURE_SUPER` because the test `cd`s there, so it never touches the surrounding subgrove repo.
 3. **`cleanup_fixture` removes the fixture — but only on success.** Called as the LAST statement of each scenario. Because every test runs under `set -eo pipefail`, an assertion failure exits the script before `cleanup_fixture` runs, leaving the fixture on disk. The runner prints the fixture path during creation; `tests/run.sh --clean` wipes the whole `tests/run/` directory.
 
 Each scenario is its own fresh repo; scenarios within a file are sequential and independent. Each test file is run in its own subshell by `tests/run.sh`, so a test's `cd` or env mutation can't bleed into the next file.
@@ -183,7 +183,7 @@ The matrix doesn't replace individual scenario tests — those remain as readabl
 
 ### 13. Symlink-based subgrove invocation
 
-Tests invoke subgrove via a symlink at `$FIXTURE_SUPER/subgrove` pointing at `$SUBGROVE_REPO_ROOT/subgrove`. The script's `SCRIPT_DIR = "$(cd "$(dirname "$0")" && pwd)"` resolves to `$FIXTURE_SUPER`, so subgrove operates on the fixture's git, never on the surrounding subgrove repo. The `new_from_other_cwd` scenario verifies this resolution holds when invoked from an arbitrary cwd.
+Tests invoke subgrove via a symlink at `$FIXTURE_SUPER/subgrove` pointing at `$SUBGROVE_REPO_ROOT/subgrove`, having `cd`'d into `$FIXTURE_SUPER` first. subgrove discovers the superproject from the current directory (`git rev-parse --show-toplevel`), so it operates on the fixture's git regardless of where the script itself lives — the property that makes a PATH/Homebrew install work. The `new_from_other_cwd` scenario pins the post-refactor contract (run from a cwd outside any repo, subgrove refuses rather than falling back to the script's location); `test_path_invocation.sh` pins the positive case (script symlinked outside the repo, invoked via PATH from inside it).
 
 ### 14. Iterative review
 

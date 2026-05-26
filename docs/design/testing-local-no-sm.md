@@ -143,6 +143,12 @@ Each of `merge`, `remove`, `update` invoked from inside `.worktree/feat-host/` m
 | `remove` from linked worktree | same | `cmd_remove`'s `assert_main_worktree` still fires. |
 | `update` from linked worktree | same | `cmd_update`'s `assert_main_worktree` still fires. |
 
+## `test_init.sh` (1)
+
+| Scenario | Asserts | Guards |
+|---|---|---|
+| Fresh init on a flat super | `--defaults` prints "No submodules detected", writes `.subgroverc` with an empty `BUILD_CHAIN`, gitignores + creates `.worktree/`, then `new` works | The wizard's submodule-detection degrades gracefully when `.gitmodules` is absent. |
+
 ## Scenarios intentionally NOT in this tier
 
 Per-submodule scenarios that have no meaningful analog without submodules:

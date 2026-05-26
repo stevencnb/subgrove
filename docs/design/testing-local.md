@@ -47,7 +47,7 @@ tests/run/<ts>-<name>/
     └── subgrove → /path/to/subgrove-repo/subgrove
 ```
 
-Then the test does its work (`cd $FIXTURE_SUPER`, `./subgrove …`, assertions). All git operations are scoped to the fixture: subgrove's `$SCRIPT_DIR` is computed from `dirname $0` of the symlink invocation, which resolves to `$FIXTURE_SUPER`, so subgrove operates on the fixture's git, never on the surrounding subgrove repo.
+Then the test does its work (`cd $FIXTURE_SUPER`, `./subgrove …`, assertions). All git operations are scoped to the fixture: subgrove discovers the superproject from the current directory (`git rev-parse --show-toplevel`), which is `$FIXTURE_SUPER` because the test `cd`s there, so subgrove operates on the fixture's git, never on the surrounding subgrove repo.
 
 `cleanup_fixture` is the LAST statement of each scenario. Because every test runs under `set -eo pipefail`, an assertion failure exits before `cleanup_fixture` runs — the fixture stays on disk and the runner prints the path so the developer can `cd` in and inspect. Passing scenarios are removed.
 
@@ -73,7 +73,7 @@ Each scenario builds its own fresh fixture. No state carries between scenarios; 
 | `touch=` with nonexistent submodule | `new feat-bad-touch touch=nonexistent` | err mentioning "no such submodule path"; worktree dir gone; parent branch gone | The `[[ -d "$sm_path" ]] || err` guard fires and the rollback trap still cleans up the half-built worktree. |
 | BUILD_CHAIN with multiple modules | `BUILD_CHAIN=(sm-a sm-b)`, `BUILD_CMD="touch .built"`; then `new` | `.built` exists in both worktree submodules | The BUILD_CHAIN loop runs each module's BUILD_CMD; order matters but every entry runs. |
 | Dirty main super doesn't block | dirty parent + both submodules in main super before `new` | new succeeds; the new worktree's HEAD is on `feat/feat-x`; dirty edits preserved | cmd_new doesn't `require_clean` — main super state is irrelevant. |
-| Invocation from non-default cwd | invoke via absolute path from `$FIXTURE_ROOT` (not from inside `$FIXTURE_SUPER`) | worktree lands inside `$FIXTURE_SUPER/.worktree/`, not in cwd | subgrove uses `dirname $0` (→ `$FIXTURE_SUPER`), not the caller's cwd. Catches a `$PWD`-vs-`SCRIPT_DIR` confusion bug. |
+| Discovery keys off the CWD, not the script | invoke the script (absolute path) from a temp dir **outside any git repo** | refuses with "not in a git repo"; the script's own repo is untouched (no `.worktree/feat-x`) | Post-refactor contract: subgrove resolves the superproject via `git rev-parse --show-toplevel` from the CWD, not `dirname $0`. The positive case (script on PATH, CWD inside the repo) is in `test_path_invocation.sh`. |
 | Rollback keeps a committed branch | `BUILD_CHAIN=(sm-a)` + `BUILD_CMD` that commits on the parent worktree then `false`; `new feat-x` | new fails; worktree dir gone; **`feat/feat-x` retained** at the wip commit (1 ahead of `main`); "advanced past its creation point" warn | `_rollback_new` skips `branch -D` when the branch moved past its creation SHA (`ROLLBACK_BR_SHA`), so build-chain commits onto the parent aren't lost. |
 
 ## `test_remove.sh` (14)
@@ -156,6 +156,38 @@ A future refactor that drops the `assert_main_worktree` call from one of these c
 | `rm` alias | same effect as `remove` | Short alias for `remove`. |
 | `subgrove -h` | prints usage; exit 0 | Short `-h` flag dispatches to `usage`. |
 | `subgrove --help` | prints usage; exit 0 | Long `--help` flag dispatches to `usage`. |
+
+## `test_path_invocation.sh` (2)
+
+Pins the runtime repo-discovery contract that makes a PATH/Homebrew install work — subgrove finds the superproject from the CWD, not from its own location. The script is symlinked into a temp dir **outside** this repo and invoked by bare name via `PATH`.
+
+| Scenario | Asserts | Guards |
+|---|---|---|
+| Invoked via PATH from the main worktree root | `subgrove list` succeeds and names `$FIXTURE_SUPER` | `discover_root` resolves the repo from the CWD even when the script lives elsewhere. |
+| Invoked via PATH from a subdirectory | `subgrove new` lands the worktree under `$FIXTURE_SUPER` | `git rev-parse --show-toplevel` works from any subdirectory, like git. |
+
+## `test_version.sh` (2)
+
+| Scenario | Asserts | Guards |
+|---|---|---|
+| `subgrove --version` from outside any repo | prints `subgrove X.Y.Z` | `--version` reports the version and does no repo discovery. |
+| `subgrove version` subcommand | same output | The bare `version` alias matches `--version`. |
+
+## `test_init.sh` (3)
+
+Exercises the `init` wizard non-interactively (`--defaults` / piped stdin), since interactive prompts can't run in the suite.
+
+| Scenario | Asserts | Guards |
+|---|---|---|
+| Fresh init (no prior `.subgroverc`) | writes `.subgroverc` (`BRANCH_PREFIX="feat/"`, empty `BUILD_CHAIN`), gitignores + creates `.worktree/`, then `new` works end-to-end | The bootstrap makes a never-configured repo usable. |
+| Reconfigure | existing `.subgroverc` value preserved; old file backed up to `.subgroverc.bak` | Re-running loads current values as defaults and never silently clobbers. |
+| Non-TTY stdin | `init </dev/null` doesn't hang; writes defaults | Piped/CI stdin falls back to defaults instead of blocking on a prompt. |
+
+## `test_build.sh` (1)
+
+| Scenario | Asserts | Guards |
+|---|---|---|
+| Build tooling (against a throwaway copy) | `build.sh` is idempotent; `build.sh --check` passes when in sync and fails after `lib/init.sh` is edited without a rebuild | The single-file build stays reproducible and drift is detectable. |
 
 ## Matrix sizing rationale
 

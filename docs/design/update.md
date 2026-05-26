@@ -3,7 +3,7 @@
 Manual escape hatch for the case where a peer worktree was created (or has been sitting) before someone else's merge landed, and you want it caught up without going through another full merge. From the main worktree:
 
 ```
-./subgrove update <peer-name>
+subgrove update <peer-name>
 ```
 
 does:

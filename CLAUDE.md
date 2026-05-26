@@ -29,3 +29,4 @@ The `.gitmodules` parser inside `list_all_submodules` gives you the submodule li
 - Add features beyond what the immediate task requires.
 - Add a runtime beyond bash.
 - Re-introduce `merge -f` (rationale in `docs/design/trade-offs.md`).
+- Commit action-plan / brainstorming spec docs (e.g. under `docs/superpowers/`, which is gitignored). They're scaffolding for a single change — fold any durable rationale into `docs/design/` and let the plan itself go.
