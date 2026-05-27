@@ -58,4 +58,4 @@ Filesystem-as-isolation is easier to keep straight than mental-state-as-isolatio
 └── ...
 ```
 
-`.worktree/` must be in `.gitignore`. `subgrove` refuses to run otherwise.
+`.worktree/` must be in `.gitignore`. `subgrove` refuses to run otherwise. The folder is configurable via `WORKTREES_DIR` in `.subgroverc` (default `.worktree/`); whatever it is set to must be gitignored, and `subgrove init` both prompts for it and adds the gitignore entry.

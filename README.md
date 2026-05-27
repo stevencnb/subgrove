@@ -75,6 +75,8 @@ subgrove remove my-feature            # tear down the worktree (branches retaine
 | `subgrove help`                       | Show usage.                                                       |
 | `subgrove --version`                  | Print the version.                                                |
 
+**`merge` is fast-forward-only, and stays that way.** It advances `main` to the feature tip in the parent and every touched submodule — preserving each commit — and refuses (asking you to rebase first) when a fast-forward isn't possible. Squash and merge-commit strategies are intentionally **not supported and not planned**: fast-forward keeps each submodule's `main` on exactly the SHA the parent already records as its gitlink, which is what lets a merge propagate across worktrees as a clean fast-forward. Rationale in [trade-offs.md](docs/design/trade-offs.md).
+
 Long-form reference: [docs/usage.md](docs/usage.md).
 
 ## Configuration
@@ -82,13 +84,14 @@ Long-form reference: [docs/usage.md](docs/usage.md).
 `.subgroverc` at the superproject root:
 
 ```bash
+WORKTREES_DIR=".worktree"                # repo-relative folder holding worktrees (gitignored)
 BUILD_CHAIN=(libfoo libbar)              # submodules to init+build after `new`
 BUILD_CMD="./init.sh && ./build.sh"      # build command per BUILD_CHAIN module
 COPY_TO_NEW_WORKTREE=(.claude)           # items copied from main → new worktrees
 BRANCH_PREFIX="feat/"                    # feature branch prefix
 ```
 
-Generate it interactively with `subgrove init` (reconfigure-safe), or copy [.subgroverc.example](.subgroverc.example) and edit by hand.
+Generate it interactively with `subgrove init` (reconfigure-safe), or copy [.subgroverc.example](.subgroverc.example) and edit by hand. A repo without a `.subgroverc` isn't set up yet: every command except `init`, `help`, and `--version` refuses with a pointer to `subgrove init`.
 
 ## Design
 

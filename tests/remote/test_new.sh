@@ -166,3 +166,28 @@ assert_state_eq .worktree/feat-x      "$state_wt_p" "[collision] existing feat w
 assert_state_eq .worktree/feat-x/sm-a "$state_wt_a" "[collision] existing feat worktree sm-a"
 assert_state_eq .worktree/feat-x/sm-b "$state_wt_b" "[collision] existing feat worktree sm-b"
 cleanup_fixture_remote
+
+# --- case: custom WORKTREES_DIR honored against a real origin clone ---
+# WORKTREES_DIR doesn't interact with the fetch/push paths, so this is
+# belt-and-suspenders over the local custom-folder coverage: it pins that
+# `new` places the worktree AND initialises submodules under the configured
+# folder when run on a wire-cloned super.
+mkfixture_remote new_custom_wtdir
+cd "$FIXTURE_SUPER"
+cat > .subgroverc <<'EOF'
+WORKTREES_DIR="wt"
+BUILD_CHAIN=()
+BUILD_CMD="true"
+COPY_TO_NEW_WORKTREE=()
+BRANCH_PREFIX="feat/"
+EOF
+printf 'wt/\n' >> .gitignore   # configured folder must be gitignored
+mkdir wt                       # exist-on-disk so check-ignore matches wt/
+./subgrove new feat-wtdir >out 2>&1
+register_feature_branch feat/feat-wtdir
+assert_file_exists wt/feat-wtdir
+assert_file_absent .worktree/feat-wtdir
+assert_head_on wt/feat-wtdir feat/feat-wtdir
+assert_head_on wt/feat-wtdir/sm-a feat/feat-wtdir
+assert_head_on wt/feat-wtdir/sm-b feat/feat-wtdir
+cleanup_fixture_remote

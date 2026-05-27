@@ -517,3 +517,39 @@ assert_branch_at .worktree/feat-z/sm-a main "$feat_a"
 assert_state_eq .worktree/feat-y/sm-b "$feat_y_sm_b_state"
 assert_state_eq .worktree/feat-z/sm-b "$feat_z_sm_b_state"
 cleanup_fixture
+
+# --- case: custom WORKTREES_DIR — new + merge + peer propagation honor it ---
+# The worktree dir is a config knob (WORKTREES_DIR), not a hardcoded .worktree/.
+# This exercises the most knob-sensitive path: merge's peer scan iterates
+# $ROOT/$WORKTREES_DIR/*, so a peer worktree under the custom folder must
+# still receive the propagated submodule main. Also pins that .worktree/ is
+# never touched when the knob points elsewhere.
+mkfixture_local merge_custom_wtdir
+cd "$FIXTURE_SUPER"
+cat > .subgroverc <<'EOF'
+WORKTREES_DIR="wt"
+BUILD_CHAIN=()
+BUILD_CMD="true"
+COPY_TO_NEW_WORKTREE=()
+BRANCH_PREFIX="feat/"
+EOF
+printf 'wt/\n' >> .gitignore       # the configured folder must be gitignored too
+mkdir wt                           # exist-on-disk so `git check-ignore wt` matches wt/
+git add .subgroverc .gitignore
+git commit --quiet -m "custom WORKTREES_DIR=wt"
+./subgrove new feat-x >out 2>&1
+./subgrove new feat-y >out 2>&1
+# Worktrees landed under wt/, never the default .worktree/.
+assert_file_exists wt/feat-x
+assert_file_exists wt/feat-y
+assert_file_absent .worktree/feat-x
+assert_file_absent .worktree/feat-y
+commit_one wt/feat-x/sm-a "sm-a change"
+( cd wt/feat-x && git add -A && git commit --quiet -m "bump" )
+./subgrove merge feat-x >out 2>&1
+feat_a="$(git -C wt/feat-x/sm-a rev-parse feat/feat-x)"
+# Main worktree's sm-a advanced...
+assert_branch_at sm-a main "$feat_a"
+# ...and the peer under the custom folder received propagation.
+assert_branch_at wt/feat-y/sm-a main "$feat_a"
+cleanup_fixture

@@ -234,3 +234,23 @@ assert_head_on .worktree/feat-x feat/feat-x
 assert_pending_file . README unstaged
 assert_state_eq . "$state_main" "[dirty_super_ok] main super"
 cleanup_fixture_remote_no_sm
+
+# --- case: custom WORKTREES_DIR honored against a real origin clone ---
+# Mirrors remote/test_new.sh::new_custom_wtdir on a flat super.
+mkfixture_remote_no_sm new_custom_wtdir
+cd "$FIXTURE_SUPER"
+cat > .subgroverc <<'EOF'
+WORKTREES_DIR="wt"
+BUILD_CHAIN=()
+BUILD_CMD="true"
+COPY_TO_NEW_WORKTREE=()
+BRANCH_PREFIX="feat/"
+EOF
+printf 'wt/\n' >> .gitignore
+mkdir wt
+./subgrove new feat-wtdir >out 2>&1
+register_feature_branch_no_sm feat/feat-wtdir
+assert_file_exists wt/feat-wtdir
+assert_file_absent .worktree/feat-wtdir
+assert_head_on wt/feat-wtdir feat/feat-wtdir
+cleanup_fixture_remote_no_sm

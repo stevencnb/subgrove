@@ -1,6 +1,12 @@
 # subgrove configuration.
 # Place this file at the superproject root as `.subgroverc` (no .example suffix).
-# Sourced by `subgrove` at startup.
+# Sourced by `subgrove` at startup. subgrove refuses to run a repo-touching
+# command unless this file exists — run `subgrove init` to generate it.
+
+# WORKTREES_DIR: folder (relative to the superproject root) holding one
+# subdirectory per feature worktree. Must be gitignored — subgrove refuses to
+# run otherwise. Default ".worktree".
+WORKTREES_DIR=".worktree"
 
 # BUILD_CHAIN: ordered submodule paths to build during `new`. Each module is
 # built by running BUILD_CMD inside its directory. Empty = no auto-build.

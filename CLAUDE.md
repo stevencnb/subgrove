@@ -19,7 +19,9 @@ Mature tools cover one or two of (parent worktree per feature) × (isolated subm
 
 ## Configuration, not hardcoding
 
-Project-specific settings live in `.subgroverc` at the superproject root, discovered at runtime via `discover_root` (git toplevel) and sourced. Knobs are `BUILD_CHAIN`, `BUILD_CMD`, `COPY_TO_NEW_WORKTREE`, `BRANCH_PREFIX`. `subgrove init` generates the file interactively; `.subgroverc.example` is the hand-edit template. If you find yourself wanting to hardcode a submodule name, branch prefix, or build command into the script, put it in the config instead.
+Project-specific settings live in `.subgroverc` at the superproject root, discovered at runtime via `discover_root` (git toplevel) and sourced. Knobs are `WORKTREES_DIR`, `BUILD_CHAIN`, `BUILD_CMD`, `COPY_TO_NEW_WORKTREE`, `BRANCH_PREFIX`. `subgrove init` generates the file interactively; `.subgroverc.example` is the hand-edit template. If you find yourself wanting to hardcode a submodule name, branch prefix, or build command into the script, put it in the config instead.
+
+A missing `.subgroverc` is fatal for every repo-touching command — `discover_root` errors with a "run `subgrove init`" hint rather than falling back to built-in defaults. Only `init` (which *writes* the file) opts out, via `discover_root --allow-missing-config`; `help`/`--version` never call `discover_root`. `WORKTREES_DIR` is repo-relative and must stay gitignored (`assert_worktrees_ignored`); the script is parameterized on it everywhere, so don't reintroduce a literal `.worktree`.
 
 The `.gitmodules` parser inside `list_all_submodules` gives you the submodule list dynamically. Don't assume a particular count.
 

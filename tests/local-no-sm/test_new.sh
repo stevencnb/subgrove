@@ -274,3 +274,25 @@ assert_file_exists .worktree/feat-x
 assert_head_on .worktree/feat-x feat/feat-x
 assert_pending_file . README unstaged
 cleanup_fixture
+
+# --- case: custom WORKTREES_DIR places the worktree in the configured folder ---
+# Submodule-agnostic knob, verified on a flat super too. Mirrors
+# local/test_new.sh::new_custom_wtdir without the submodule assertions.
+mkfixture_local_no_sm new_custom_wtdir
+cd "$FIXTURE_SUPER"
+cat > .subgroverc <<'EOF'
+WORKTREES_DIR="wt"
+BUILD_CHAIN=()
+BUILD_CMD="true"
+COPY_TO_NEW_WORKTREE=()
+BRANCH_PREFIX="feat/"
+EOF
+printf 'wt/\n' >> .gitignore
+mkdir wt
+git add .subgroverc .gitignore
+git commit --quiet -m "custom WORKTREES_DIR=wt"
+./subgrove new feat-x >out 2>&1
+assert_file_exists wt/feat-x
+assert_file_absent .worktree/feat-x
+assert_head_on wt/feat-x feat/feat-x
+cleanup_fixture
