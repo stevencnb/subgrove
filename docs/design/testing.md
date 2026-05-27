@@ -196,6 +196,20 @@ The suite was developed through ~7 rounds of "find new weakness → apply." Each
 
 Real bugs surfaced across rounds so far: one subgrove bug (cmd_remove not preserving submodule branches — round 2, caught a doc/code discrepancy), one self-inflicted test bug (round 3, my own incorrect `merge_nothing` skip-list assertion).
 
+### 15. State verification through `subgrove status`
+
+`status` is the user's primary, frequently-run state-inspection command, so the suite treats it as the canonical **state oracle**: every test of a state-changing command (`new`, `merge`, `update`, `remove`), in *every* tier and in the matrix/push variants — not just a local happy path — also asserts the resulting state through `status`, via `assert_status` / `assert_status_absent` (assert.sh). Both run `subgrove status` from the fixture super (read-only) and capture into a variable, so they never clobber the conventional `out` file; each takes one or more ERE patterns.
+
+Place the check at the end of a scenario, after the command's own output greps. Assert the robust, unambiguous markers — a fragile ahead/behind or dirty marker only where the case's setup makes it definite:
+
+- **new** (success): `assert_status <name> "<prefix><name>"` — the worktree is listed with its feature branch (and touched submodule names, or none under `touch=none`).
+- **merge** (success): the worktree is retained, so `assert_status <name>` still lists it; in single-worktree cases also `assert_status_absent "↑1"` (main caught up — no longer ahead).
+- **update** (success): `assert_status <name>` — the peer worktree is unchanged on disk, so it's still listed.
+- **remove** (success): `assert_status_absent <name>` — the worktree is gone (or `assert_status "no feature worktrees yet"` when it was the last one).
+- **refuse / no-op paths**: `assert_status <name>` — the worktree is preserved exactly as before, complementing the `assert_state_eq` snapshots (§4).
+
+This is a hard rule for new command tests and any change to command behavior — not an optional extra. It complements, never replaces, the precise assertions (`assert_branch_at`, `assert_commits_ahead`): `status` checks the user-facing summary; those pin exact SHAs/refs.
+
 ## Per-tier case lists
 
 Every scenario, its setup, what it asserts, and which design invariant it guards:

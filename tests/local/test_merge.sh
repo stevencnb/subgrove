@@ -44,6 +44,11 @@ wt_state_p="$(snapshot_state .worktree/feat-x)"
 wt_state_a="$(snapshot_state .worktree/feat-x/sm-a)"
 wt_state_b="$(snapshot_state .worktree/feat-x/sm-b)"
 
+# Before merge, status should report feat-x one commit ahead of main
+# (and read-only — it must not disturb the state snapshotted just above).
+./subgrove status >out 2>&1
+assert_grep out "↑1"
+
 ./subgrove merge feat-x >out 2>&1
 
 # --- POST-merge state ---
@@ -84,6 +89,10 @@ assert_grep out "Pushed: *false"
 # Info lines reflect the actual phases that ran.
 assert_grep out "Moving main forward in main worktree's submodules"
 assert_grep out "Fast-forwarding parent main"
+# After merge, main caught up to feat — status no longer reports feat-x ahead.
+./subgrove status >out 2>&1
+assert_grep out "feat-x"
+assert_grep_v out "↑1"
 cleanup_fixture
 
 # --- case: nothing to merge — every location's state preserved ---
@@ -113,6 +122,9 @@ assert_state_eq .worktree/feat-y/sm-b "$state_wt_b"
 assert_grep out "Submodules merged: *\(none\)"
 assert_grep out "Submodules skipped: *sm-a sm-b"
 assert_grep out "Parent merged: *false"
+# §15: status reflects the resulting state. Nothing-to-merge retains the
+# worktree.
+assert_status feat-y "feat/feat-y"
 cleanup_fixture
 
 # --- case: partial — only one submodule has changes ---
@@ -144,6 +156,9 @@ assert_state_eq .worktree/feat-p/sm-a "$wt_state_a"
 assert_state_eq .worktree/feat-p/sm-b "$wt_state_b"
 # Specific skip line names sm-b (not just any word containing "skip").
 assert_grep out "skip \(no commits\):.*sm-b"
+# §15: status reflects the resulting state. The worktree is retained after a
+# successful merge.
+assert_status feat-p "feat/feat-p"
 cleanup_fixture
 
 # --- case: dirty parent (dst) — no submodule mains advance (two-phase) ---
@@ -195,6 +210,9 @@ assert_state_eq sm-b                  "$state_main_b"
 assert_state_eq .worktree/feat-x      "$state_wt_p"
 assert_state_eq .worktree/feat-x/sm-a "$state_wt_a"
 assert_state_eq .worktree/feat-x/sm-b "$state_wt_b"
+# §15: status reflects the resulting state. A refused merge retains the
+# worktree.
+assert_status feat-x "feat/feat-x"
 cleanup_fixture
 
 # --- case: dirty submodule (dst, sm-a) refused — full state preservation ---
@@ -225,6 +243,9 @@ assert_state_eq .worktree/feat-x/sm-b "$state_wt_b"
 # don't have a feat-x branch (Phase 1 would have fetched it).
 assert_no_branch sm-a feat/feat-x
 assert_no_branch sm-b feat/feat-x
+# §15: status reflects the resulting state. A refused merge retains the
+# worktree.
+assert_status feat-x "feat/feat-x"
 cleanup_fixture
 
 # --- case: dirty submodule (dst, sm-b) refused — symmetry with sm-a ---
@@ -252,6 +273,9 @@ assert_state_eq .worktree/feat-x/sm-a "$state_wt_a"
 assert_state_eq .worktree/feat-x/sm-b "$state_wt_b"
 assert_no_branch sm-a feat/feat-x
 assert_no_branch sm-b feat/feat-x
+# §15: status reflects the resulting state. A refused merge retains the
+# worktree.
+assert_status feat-x "feat/feat-x"
 cleanup_fixture
 
 # --- case: non-FF parent ---
@@ -279,6 +303,9 @@ assert_state_eq sm-b                  "$state_main_b"
 assert_state_eq .worktree/feat-x      "$state_wt_p"
 assert_state_eq .worktree/feat-x/sm-a "$state_wt_a"
 assert_state_eq .worktree/feat-x/sm-b "$state_wt_b"
+# §15: status reflects the resulting state. A refused merge retains the
+# worktree.
+assert_status feat-x "feat/feat-x"
 cleanup_fixture
 
 # --- case: non-FF submodule (two-phase invariant) ---
@@ -330,6 +357,9 @@ assert_clean sm-a
 assert_clean sm-b
 assert_state_eq sm-a "$state_main_a"
 assert_state_eq sm-b "$state_main_b"
+# §15: status reflects the resulting state. A refused merge retains the
+# worktree.
+assert_status feat-x "feat/feat-x"
 cleanup_fixture
 
 # --- case: peer propagation (clean peer) ---
@@ -350,6 +380,10 @@ feat_a="$(git -C .worktree/feat-x/sm-a rev-parse feat/feat-x)"
 assert_branch_at .worktree/feat-y/sm-a main "$feat_a"
 # Peer's sm-b not in needs_merge — totally unchanged.
 assert_state_eq .worktree/feat-y/sm-b "$feat_y_sm_b_state"
+# §15: status reflects the resulting state. Both the merged and peer
+# worktrees are retained.
+assert_status feat-x "feat/feat-x"
+assert_status feat-y "feat/feat-y"
 cleanup_fixture
 
 # --- case: peer with main checked out → propagation skipped ---
@@ -370,6 +404,10 @@ peer_main_after="$(git -C .worktree/feat-y/sm-a rev-parse main)"
 assert_eq "$peer_main_before" "$peer_main_after"
 # Full state preserved — HEAD still on main, working tree at original SHA.
 assert_state_eq .worktree/feat-y/sm-a "$peer_state_before"
+# §15: status reflects the resulting state. Both worktrees are retained; the
+# feat-y parent is still on its feat branch (only its sm-a was on main).
+assert_status feat-x "feat/feat-x"
+assert_status feat-y "feat/feat-y"
 cleanup_fixture
 
 # --- case: peer's main diverged → propagation skipped; forged SHA preserved ---
@@ -394,6 +432,9 @@ assert_grep out "diverged"
 assert_branch_at .worktree/feat-y/sm-a main "$forged_sha"
 # Full state preserved (HEAD on feat/feat-y, working tree at feat tip).
 assert_state_eq .worktree/feat-y/sm-a "$peer_state_before"
+# §15: status reflects the resulting state. Both worktrees are retained.
+assert_status feat-x "feat/feat-x"
+assert_status feat-y "feat/feat-y"
 cleanup_fixture
 
 # --- case: nonexistent branch refused ---
@@ -402,6 +443,8 @@ cd "$FIXTURE_SUPER"
 if ./subgrove merge never-existed >out 2>&1; then
     fail "expected merge to fail on nonexistent name"
 fi
+# §15: status reflects the resulting state. No worktree was ever created.
+assert_status "no feature worktrees yet"
 cleanup_fixture
 
 # --- case: parent-only commit (touch=none) ---
@@ -433,6 +476,9 @@ assert_branch_at sm-b main "$sm_b_main_before"
 # Summary reflects the parent-only merge accurately.
 assert_grep out "Submodules merged: *\(none\)"
 assert_grep out "Parent merged: *true"
+# §15: status reflects the resulting state. The worktree is retained after a
+# successful merge.
+assert_status feat-x "feat/feat-x"
 cleanup_fixture
 
 # --- case: dirty source parent (feature worktree) refused ---
@@ -460,6 +506,9 @@ assert_state_eq .worktree/feat-x/sm-a "$state_wt_a"
 assert_state_eq .worktree/feat-x/sm-b "$state_wt_b"
 assert_no_branch sm-a feat/feat-x
 assert_no_branch sm-b feat/feat-x
+# §15: status reflects the resulting state. A refused merge retains the
+# worktree.
+assert_status feat-x "feat/feat-x"
 cleanup_fixture
 
 # --- case: dirty source submodule (feature worktree) refused ---
@@ -487,6 +536,9 @@ assert_state_eq .worktree/feat-x/sm-a "$state_wt_a"
 assert_state_eq .worktree/feat-x/sm-b "$state_wt_b"
 assert_no_branch sm-a feat/feat-x
 assert_no_branch sm-b feat/feat-x
+# §15: status reflects the resulting state. A refused merge retains the
+# worktree.
+assert_status feat-x "feat/feat-x"
 cleanup_fixture
 
 # --- case: peer propagation reaches multiple peer worktrees ---
@@ -516,6 +568,10 @@ assert_branch_at .worktree/feat-y/sm-a main "$feat_a"
 assert_branch_at .worktree/feat-z/sm-a main "$feat_a"
 assert_state_eq .worktree/feat-y/sm-b "$feat_y_sm_b_state"
 assert_state_eq .worktree/feat-z/sm-b "$feat_z_sm_b_state"
+# §15: status reflects the resulting state. All three worktrees are retained.
+assert_status feat-x "feat/feat-x"
+assert_status feat-y "feat/feat-y"
+assert_status feat-z "feat/feat-z"
 cleanup_fixture
 
 # --- case: custom WORKTREES_DIR — new + merge + peer propagation honor it ---
@@ -552,4 +608,8 @@ feat_a="$(git -C wt/feat-x/sm-a rev-parse feat/feat-x)"
 assert_branch_at sm-a main "$feat_a"
 # ...and the peer under the custom folder received propagation.
 assert_branch_at wt/feat-y/sm-a main "$feat_a"
+# §15: status reflects the resulting state (status reads WORKTREES_DIR, so it
+# finds both worktrees under the configured folder).
+assert_status feat-x "feat/feat-x"
+assert_status feat-y "feat/feat-y"
 cleanup_fixture

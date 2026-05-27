@@ -52,6 +52,8 @@ assert_state_eq .worktree/feat-x "$wt_state"
 # forward in main worktree's submodules" line MUST NOT fire (Phase 2's
 # submodule loop iterates the empty list).
 assert_grep_v out "Moving main forward in main worktree's submodules"
+# §15: status reflects the resulting state.
+assert_status feat-x "feat/feat-x"
 cleanup_fixture
 
 # --- case: nothing to merge (feat tip == main tip) ---
@@ -83,6 +85,8 @@ assert_grep_v out "Fast-forwarding parent main"
 assert_grep out "Push skipped \(push=true to enable\)"
 # Summary still prints; parent merged: false.
 assert_grep out "Parent merged: +false"
+# §15: status reflects the resulting state.
+assert_status feat-x "feat/feat-x"
 cleanup_fixture
 
 # --- case: dirty parent (dst) refused ---
@@ -104,6 +108,8 @@ assert_pending_file . README unstaged
 # Phase 2 didn't run (the "Fast-forwarding parent main" info line must
 # not appear when the dirty-check refused).
 assert_grep_v out "Fast-forwarding parent main"
+# §15: status reflects the resulting state.
+assert_status feat-x "feat/feat-x"
 cleanup_fixture
 
 # --- case: non-FF parent refused ---
@@ -129,6 +135,8 @@ assert_eq "$main_sha_pre" "$(git rev-parse main)" "main moved on non-FF refuse"
 assert_state_eq . "$main_state"
 # Phase 2 didn't run.
 assert_grep_v out "Fast-forwarding parent main"
+# §15: status reflects the resulting state.
+assert_status feat-x "feat/feat-x"
 cleanup_fixture
 
 # --- case: merge push=true on no-origin super ---
@@ -157,6 +165,8 @@ assert_grep out "'origin' does not appear"
 main_sha_after_push="$(git rev-parse main)"
 assert_eq "$feat_sha" "$main_sha_after_push" \
     "parent main should remain advanced after push failure (push-after-merge does not roll back)"
+# §15: status reflects the resulting state.
+assert_status feat-x "feat/feat-x"
 cleanup_fixture
 
 # Note: an explicit `push=false` scenario is intentionally NOT here.
@@ -172,6 +182,8 @@ if ./subgrove merge never-existed >out 2>&1; then
 fi
 # Pin the specific err-text (don't just check exit code).
 assert_grep out "does not exist"
+# §15: status reflects the resulting state. No worktree was ever created.
+assert_status "no feature worktrees yet"
 cleanup_fixture
 
 # --- case: submodule-phase info lines absent (two-peer scenario) ---
@@ -195,4 +207,6 @@ assert_grep_v out "Moving main forward in main worktree's submodules"
 assert_grep out "Fast-forwarding parent main"
 # Parent merge still succeeded.
 assert_grep out "Parent merged: +true"
+# §15: status reflects the resulting state (both peer worktrees survive).
+assert_status feat-x "feat/feat-x" feat-y "feat/feat-y"
 cleanup_fixture

@@ -25,6 +25,10 @@ A missing `.subgroverc` is fatal for every repo-touching command — `discover_r
 
 The `.gitmodules` parser inside `list_all_submodules` gives you the submodule list dynamically. Don't assume a particular count.
 
+## Testing: verify resulting state through `status`
+
+`subgrove status` is the user's primary, frequently-run state-inspection command, so the test suite treats it as the canonical **state oracle**. Every test of a state-changing command (`new`, `merge`, `update`, `remove`) must also assert the resulting repository state through `status` — via the `assert_status` / `assert_status_absent` helpers in `tests/lib/assert.sh` — in **every tier** (`local`, `local-no-sm`, `remote`, `remote-no-sm`) and in the matrix/push variants, not just a local happy path. If a command leaves the repo in state X, `status` must report X; after a successful `remove`, `status` must stop listing the worktree. This is a hard rule for new command tests and for any change to command behavior — it *complements*, never replaces, the precise SHA/ref assertions (`assert_branch_at`, `assert_commits_ahead`). Per-command patterns: `docs/design/testing.md` §15.
+
 ## Don't
 
 - Drop a recent addition without reading the matching design note. Each closes a real failure mode.

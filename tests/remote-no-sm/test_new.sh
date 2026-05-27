@@ -36,6 +36,8 @@ assert_grep_v out "warn: parent fetch failed"
 assert_grep out "Submodule branching skipped \(touch=none\)"
 # Main super untouched — new only added .worktree/feat-golden (gitignored).
 assert_state_eq . "$state_main" "[golden] main super"
+# §15: status reflects the resulting state.
+assert_status feat-golden "feat/feat-golden"
 cleanup_fixture_remote_no_sm
 
 # --- case: super origin ahead — feat branch uses origin/main as base ---
@@ -53,6 +55,8 @@ register_feature_branch_no_sm feat/feat-up
 
 assert_branch_at . feat/feat-up "$upstream_sha"
 assert_state_eq . "$state_main" "[super_ahead] main super"
+# §15: status reflects the resulting state.
+assert_status feat-up "feat/feat-up"
 cleanup_fixture_remote_no_sm
 
 # --- case: super origin diverged — local has its own unpushed commits ---
@@ -85,6 +89,8 @@ assert_branch_at . feat/feat-div "$upstream_sha"
 assert_branch_at . main "$local_sha"
 # Main super's parent untouched (working tree, index, diffs).
 assert_state_eq . "$state_main" "[diverged] main super"
+# §15: status reflects the resulting state.
+assert_status feat-div "feat/feat-div"
 cleanup_fixture_remote_no_sm
 
 # --- case: parent branch already exists locally → refused ---
@@ -112,6 +118,8 @@ assert_grep out "already exists"
 # feat worktree from the first new.
 assert_state_eq .                "$state_main" "[collision] main super"
 assert_state_eq .worktree/feat-x "$state_wt"   "[collision] existing feat worktree"
+# §15: status reflects the resulting state.
+assert_status feat-x "feat/feat-x"
 cleanup_fixture_remote_no_sm
 
 # --- case: linked-worktree refusal ---
@@ -131,6 +139,9 @@ if ./subgrove new feat-from-linked >out 2>&1; then
 fi
 assert_grep out "currently in a linked worktree"
 cd "$FIXTURE_SUPER"
+# §15: status reflects the resulting state.
+assert_status feat-host "feat/feat-host"
+assert_status_absent feat-from-linked
 cleanup_fixture_remote_no_sm
 
 # --- case: invalid names rejected ---
@@ -169,6 +180,8 @@ assert_grep out "feature name required"
     || fail ".worktree/ should be empty after invalid-name rejections"
 [[ -z "$(git for-each-ref --format='%(refname:short)' refs/heads/feat/ 2>/dev/null)" ]] \
     || fail "no feat/ branches should exist after invalid-name rejections"
+# §15: status reflects the resulting state.
+assert_status "no feature worktrees yet"
 cleanup_fixture_remote_no_sm
 
 # --- case: missing .worktree/ in .gitignore refused ---
@@ -183,6 +196,8 @@ fi
 assert_grep out "\.worktree/ is not gitignored"
 assert_file_absent .worktree/feat-noignore
 assert_no_branch . feat/feat-noignore
+# §15: status reflects the resulting state.
+assert_status_absent feat-noignore
 cleanup_fixture_remote_no_sm
 
 # --- case: pre-existing worktree dir refused ---
@@ -199,6 +214,9 @@ assert_no_branch . feat/feat-collide
 assert_file_exists .worktree/feat-collide/marker
 [[ "$(cat .worktree/feat-collide/marker)" == "sentinel" ]] \
     || fail "pre-existing dir contents modified by failed new"
+# §15: status reflects the resulting state. The pre-existing (non-worktree)
+# .worktree/feat-collide dir is retained, so status enumerates it as a row.
+assert_status feat-collide
 cleanup_fixture_remote_no_sm
 
 # --- case: pre-existing parent branch refused ---
@@ -213,6 +231,8 @@ fi
 assert_grep out "branch 'feat/feat-pre' already exists in parent repo"
 assert_file_absent .worktree/feat-pre
 assert_branch_at . feat/feat-pre "$pre_branch_sha"
+# §15: status reflects the resulting state (no worktree dir created).
+assert_status_absent feat-pre
 cleanup_fixture_remote_no_sm
 
 # --- case: dirty main super doesn't block new ---
@@ -233,6 +253,8 @@ assert_file_exists .worktree/feat-x
 assert_head_on .worktree/feat-x feat/feat-x
 assert_pending_file . README unstaged
 assert_state_eq . "$state_main" "[dirty_super_ok] main super"
+# §15: status reflects the resulting state.
+assert_status feat-x "feat/feat-x"
 cleanup_fixture_remote_no_sm
 
 # --- case: custom WORKTREES_DIR honored against a real origin clone ---
@@ -253,4 +275,6 @@ register_feature_branch_no_sm feat/feat-wtdir
 assert_file_exists wt/feat-wtdir
 assert_file_absent .worktree/feat-wtdir
 assert_head_on wt/feat-wtdir feat/feat-wtdir
+# §15: status reflects the resulting state.
+assert_status feat-wtdir "feat/feat-wtdir"
 cleanup_fixture_remote_no_sm

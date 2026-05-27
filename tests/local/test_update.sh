@@ -26,6 +26,9 @@ new_main="$(git -C "$FIXTURE_ROOT/sm-a" rev-parse main)"
 assert_branch_at .worktree/feat-y/sm-a main "$new_main"
 # sm-b in the peer is untouched — sibling sm-b didn't get a new commit.
 assert_branch_at .worktree/feat-y/sm-b main "$sm_b_main_before"
+# §15: status reflects the resulting state. update is ref-only and retains
+# the worktree.
+assert_status feat-y "feat/feat-y"
 cleanup_fixture
 
 # --- case: _update_sync sentinel cleaned up on success ---
@@ -43,6 +46,8 @@ fi
 if git -C sm-b rev-parse --verify --quiet refs/heads/_update_sync >/dev/null 2>&1; then
     fail "_update_sync ref leaked after update (clean run)"
 fi
+# §15: status reflects the resulting state. update retains the worktree.
+assert_status feat-y "feat/feat-y"
 cleanup_fixture
 
 # --- case: pre-existing _update_sync ref cleaned up ---
@@ -54,6 +59,8 @@ git -C sm-a update-ref refs/heads/_update_sync "$(git -C sm-a rev-parse main)"
 if git -C sm-a rev-parse --verify --quiet refs/heads/_update_sync >/dev/null 2>&1; then
     fail "_update_sync ref leaked after update (pre-existing case)"
 fi
+# §15: status reflects the resulting state. update retains the worktree.
+assert_status feat-y "feat/feat-y"
 cleanup_fixture
 
 # --- case: peer with main checked out → skipped ---
@@ -70,6 +77,9 @@ peer_main_after="$(git -C .worktree/feat-y/sm-a rev-parse main)"
 assert_eq "$peer_main_before" "$peer_main_after"
 # Full state preserved (HEAD on main, working tree clean at original SHA).
 assert_state_eq .worktree/feat-y/sm-a "$peer_state_before"
+# §15: status reflects the resulting state. The worktree is retained; its
+# parent is still on feat/feat-y (only its sm-a was on main).
+assert_status feat-y "feat/feat-y"
 cleanup_fixture
 
 # --- case: peer's main diverged → skipped; forged SHA preserved ---
@@ -91,6 +101,8 @@ assert_grep out "diverged"
 assert_branch_at .worktree/feat-y/sm-a main "$forged_sha"
 # Full state preserved.
 assert_state_eq .worktree/feat-y/sm-a "$peer_state_before"
+# §15: status reflects the resulting state. update retains the worktree.
+assert_status feat-y "feat/feat-y"
 cleanup_fixture
 
 # --- case: no refs/remotes/origin/main → skipped with warn ---
@@ -113,6 +125,8 @@ assert_branch_at .worktree/feat-y/sm-b main "$peer_b_main_before"
 # Full state preserved on both peer submodules.
 assert_state_eq .worktree/feat-y/sm-a "$peer_a_state"
 assert_state_eq .worktree/feat-y/sm-b "$peer_b_state"
+# §15: status reflects the resulting state. update retains the worktree.
+assert_status feat-y "feat/feat-y"
 cleanup_fixture
 
 # --- case: doesn't require clean state — and dirty edit is preserved ---
@@ -129,6 +143,8 @@ state_peer_a="$(snapshot_state .worktree/feat-y/sm-a)"
 # but snapshot_state doesn't include refs).
 assert_pending_file .worktree/feat-y/sm-a README unstaged
 assert_state_eq .worktree/feat-y/sm-a "$state_peer_a"
+# §15: status reflects the resulting state. update retains the worktree.
+assert_status feat-y "feat/feat-y"
 cleanup_fixture
 
 # --- case: nonexistent name refused ---
@@ -137,6 +153,8 @@ cd "$FIXTURE_SUPER"
 if ./subgrove update never-existed >out 2>&1; then
     fail "expected update to fail on nonexistent name"
 fi
+# §15: status reflects the resulting state. No worktree was ever created.
+assert_status "no feature worktrees yet"
 cleanup_fixture
 
 # --- case: multiple submodules update in one run ---
@@ -156,6 +174,8 @@ assert_branch_at .worktree/feat-y/sm-a main "$new_sm_a"
 assert_branch_at .worktree/feat-y/sm-b main "$new_sm_b"
 # Parent main never moves during update.
 assert_branch_at . main "$parent_main_before"
+# §15: status reflects the resulting state. update retains the worktree.
+assert_status feat-y "feat/feat-y"
 cleanup_fixture
 
 # --- case: dirty main super doesn't block update — and dirty preserved ---
@@ -194,6 +214,8 @@ assert_state_eq sm-b "$main_sm_b_state"
 # Peer worktree's parent + sm-b untouched (only sm-a was supposed to move).
 assert_state_eq .worktree/feat-y      "$peer_parent_state"
 assert_state_eq .worktree/feat-y/sm-b "$peer_sm_b_state"
+# §15: status reflects the resulting state. update retains the worktree.
+assert_status feat-y "feat/feat-y"
 cleanup_fixture
 
 # --- case: pre-existing _update_sync is a USER branch (not a stale sentinel) ---
@@ -229,4 +251,6 @@ assert_branch_at .worktree/feat-y/sm-a main "$peer_sm_a_main_before"
 assert_branch_at .worktree/feat-y/sm-b main "$new_sm_b"
 # Summary: 1 updated (sm-b), 1 skipped (sm-a).
 assert_grep out "Updated 1 submodule main\(s\); 1 skipped"
+# §15: status reflects the resulting state. update retains the worktree.
+assert_status feat-y "feat/feat-y"
 cleanup_fixture

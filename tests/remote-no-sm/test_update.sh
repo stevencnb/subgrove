@@ -39,6 +39,8 @@ assert_grep out "Updated 0 submodule main\(s\); 0 skipped"
 # Working trees untouched.
 assert_state_eq .                "$state_main" "[super_ahead] main super"
 assert_state_eq .worktree/feat-su "$state_wt"   "[super_ahead] peer"
+# §15: status reflects the resulting state (update retains the worktree).
+assert_status feat-su "feat/feat-su"
 cleanup_fixture_remote_no_sm
 
 # --- case: no drift anywhere — true no-op ---
@@ -61,6 +63,8 @@ assert_grep_v out "warn: parent fetch failed"
 assert_grep out "Updated 0 submodule main\(s\); 0 skipped"
 assert_state_eq .               "$state_main" "[noop] main super"
 assert_state_eq .worktree/feat-n "$state_wt"   "[noop] peer"
+# §15: status reflects the resulting state (update retains the worktree).
+assert_status feat-n "feat/feat-n"
 cleanup_fixture_remote_no_sm
 
 # --- case: nonexistent name errs ---
@@ -70,6 +74,8 @@ if ./subgrove update never-existed >out 2>&1; then
     fail "expected update to err on nonexistent worktree name"
 fi
 assert_grep out "does not exist"
+# §15: status reflects the resulting state (no worktree was created).
+assert_status "no feature worktrees yet"
 cleanup_fixture_remote_no_sm
 
 # --- case: sentinel ref never created in main super ---
@@ -96,6 +102,8 @@ for ref in refs/heads/_update_sync refs/_update_sync refs/remotes/origin/_update
 done
 assert_state_eq .                "$state_main" "[no_sentinel] main super"
 assert_state_eq .worktree/feat-y "$state_wt"   "[no_sentinel] peer"
+# §15: status reflects the resulting state (update retains the worktree).
+assert_status feat-y "feat/feat-y"
 cleanup_fixture_remote_no_sm
 
 # --- case: pre-existing _update_sync ref in parent is untouched ---
@@ -125,6 +133,8 @@ assert_eq "$pre_root"   "$post_root"   "refs/_update_sync changed during update"
 assert_eq "$pre_remote" "$post_remote" "refs/remotes/origin/_update_sync changed during update"
 assert_state_eq .                "$state_main" "[parent_sentinel] main super"
 assert_state_eq .worktree/feat-y "$state_wt"   "[parent_sentinel] peer"
+# §15: status reflects the resulting state (update retains the worktree).
+assert_status feat-y "feat/feat-y"
 cleanup_fixture_remote_no_sm
 
 # --- case: doesn't require clean state ---
@@ -146,4 +156,6 @@ assert_grep out "Updated 0 submodule main\(s\); 0 skipped"
 assert_pending_file .worktree/feat-y README unstaged
 assert_state_eq .                "$state_main" "[dirty_ok] main super"
 assert_state_eq .worktree/feat-y "$state_wt"   "[dirty_ok] peer"
+# §15: status reflects the resulting state (update retains the worktree).
+assert_status feat-y "feat/feat-y"
 cleanup_fixture_remote_no_sm

@@ -139,6 +139,9 @@ _run_cell() {
         assert_ne "0" "$rc" "[$label] merge should fail (first-fail: $first_fail)"
     fi
 
+    # §15: status reflects the resulting state.
+    assert_status feat-x "feat/feat-x"
+
     cleanup_fixture_remote
 }
 

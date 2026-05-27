@@ -35,6 +35,8 @@ assert_grep_v out "Branching [0-9]+ submodule\(s\)"
 # BUILD_CHAIN=() in .subgroverc; the "no chain configured" message fires
 # regardless of any `build=` flag (no flag passed here).
 assert_grep out "No BUILD_CHAIN configured"
+# §15: status reflects the resulting state.
+assert_status feat-x "feat/feat-x"
 cleanup_fixture
 
 # --- case: touch=none explicit ---
@@ -46,6 +48,8 @@ cd "$FIXTURE_SUPER"
 ./subgrove new feat-z touch=none >out 2>&1
 assert_head_on .worktree/feat-z feat/feat-z
 assert_grep out "Submodule branching skipped \(touch=none\)"
+# §15: status reflects the resulting state.
+assert_status feat-z "feat/feat-z"
 cleanup_fixture
 
 # --- case: touch= empty value ---
@@ -56,6 +60,8 @@ cd "$FIXTURE_SUPER"
 ./subgrove new feat-emptyt touch= >out 2>&1
 assert_head_on .worktree/feat-emptyt feat/feat-emptyt
 assert_grep out "Submodule branching skipped \(touch=none\)"
+# §15: status reflects the resulting state.
+assert_status feat-emptyt "feat/feat-emptyt"
 cleanup_fixture
 
 # --- case: touch=sm-a (no such sm) refused + rollback ---
@@ -72,6 +78,8 @@ assert_grep out "no such submodule path"
 # Rollback fired: worktree dir + parent branch gone.
 assert_file_absent .worktree/feat-bad
 assert_no_branch . feat/feat-bad
+# §15: status reflects the resulting state.
+assert_status_absent feat-bad
 cleanup_fixture
 
 # --- case: touch=sm-a,sm-b (multi-name list, none exist) refused + rollback ---
@@ -87,6 +95,8 @@ assert_grep out "Branching 2 submodule\(s\) to feat/feat-multi"
 assert_grep out "no such submodule path"
 assert_file_absent .worktree/feat-multi
 assert_no_branch . feat/feat-multi
+# §15: status reflects the resulting state.
+assert_status_absent feat-multi
 cleanup_fixture
 
 # --- case: build=false with empty BUILD_CHAIN ---
@@ -101,6 +111,8 @@ assert_head_on .worktree/feat-bf feat/feat-bf
 assert_grep out "No BUILD_CHAIN configured"
 # The "Build chain skipped" message MUST NOT fire — there's no chain to skip.
 assert_grep_v out "Build chain skipped"
+# §15: status reflects the resulting state.
+assert_status feat-bf "feat/feat-bf"
 cleanup_fixture
 
 # --- case: build=true with empty BUILD_CHAIN ---
@@ -109,6 +121,8 @@ cd "$FIXTURE_SUPER"
 ./subgrove new feat-bt build=true >out 2>&1
 assert_head_on .worktree/feat-bt feat/feat-bt
 assert_grep out "No BUILD_CHAIN configured"
+# §15: status reflects the resulting state.
+assert_status feat-bt "feat/feat-bt"
 cleanup_fixture
 
 # --- case: build=invalid with empty BUILD_CHAIN ---
@@ -121,6 +135,8 @@ cd "$FIXTURE_SUPER"
 ./subgrove new feat-bi build=oops >out 2>&1
 assert_head_on .worktree/feat-bi feat/feat-bi
 assert_grep out "No BUILD_CHAIN configured"
+# §15: status reflects the resulting state.
+assert_status feat-bi "feat/feat-bi"
 cleanup_fixture
 
 # --- case: BUILD_CHAIN=(sm-a) on no-sm super — rollback via build phase ---
@@ -164,6 +180,8 @@ assert_state_eq . "$super_state"
 assert_file_exists .subgroverc
 assert_file_exists README
 assert_file_exists subgrove
+# §15: status reflects the resulting state.
+assert_status_absent feat-bc
 cleanup_fixture
 
 # --- case: pre-existing worktree dir refused ---
@@ -180,6 +198,10 @@ assert_no_branch . feat/feat-collide
 assert_file_exists .worktree/feat-collide/marker
 [[ "$(cat .worktree/feat-collide/marker)" == "sentinel" ]] \
     || fail "pre-existing dir contents modified by failed new"
+# §15: status reflects the resulting state. The pre-existing collide dir
+# under .worktree/ is enumerated as a row by status (branch never created,
+# so do not assert the branch).
+assert_status feat-collide
 cleanup_fixture
 
 # --- case: pre-existing parent branch refused ---
@@ -193,6 +215,9 @@ fi
 assert_grep out "branch 'feat/feat-pre' already exists in parent repo"
 assert_file_absent .worktree/feat-pre
 assert_branch_at . feat/feat-pre "$pre_branch_sha"
+# §15: status reflects the resulting state. No worktree dir was created, so
+# the bare feat/feat-pre branch produces no status row.
+assert_status_absent feat-pre
 cleanup_fixture
 
 # --- case: linked-worktree refusal ---
@@ -209,6 +234,10 @@ fi
 # several success-path narration lines).
 assert_grep out "currently in a linked worktree"
 cd "$FIXTURE_SUPER"
+# §15: status reflects the resulting state. feat-host was created and
+# survives; feat-from-linked was refused and never created.
+assert_status feat-host "feat/feat-host"
+assert_status_absent feat-from-linked
 cleanup_fixture
 
 # --- case: missing .worktree/ in .gitignore refused ---
@@ -223,6 +252,8 @@ fi
 assert_grep out "\.worktree/ is not gitignored"
 assert_file_absent .worktree/feat-noignore
 assert_no_branch . feat/feat-noignore
+# §15: status reflects the resulting state.
+assert_status_absent feat-noignore
 cleanup_fixture
 
 # --- case: invalid names rejected ---
@@ -258,6 +289,8 @@ assert_grep out "feature name required"
     || fail ".worktree/ should be empty after invalid-name rejections"
 [[ -z "$(git for-each-ref --format='%(refname:short)' refs/heads/feat/ 2>/dev/null)" ]] \
     || fail "no feat/ branches should exist after invalid-name rejections"
+# §15: status reflects the resulting state. No worktrees were created.
+assert_status "no feature worktrees yet"
 cleanup_fixture
 
 # --- case: dirty main super doesn't block new ---
@@ -273,6 +306,8 @@ assert_pending_file . README unstaged
 assert_file_exists .worktree/feat-x
 assert_head_on .worktree/feat-x feat/feat-x
 assert_pending_file . README unstaged
+# §15: status reflects the resulting state.
+assert_status feat-x "feat/feat-x"
 cleanup_fixture
 
 # --- case: custom WORKTREES_DIR places the worktree in the configured folder ---
@@ -295,4 +330,6 @@ git commit --quiet -m "custom WORKTREES_DIR=wt"
 assert_file_exists wt/feat-x
 assert_file_absent .worktree/feat-x
 assert_head_on wt/feat-x feat/feat-x
+# §15: status reflects the resulting state (custom WORKTREES_DIR=wt).
+assert_status feat-x "feat/feat-x"
 cleanup_fixture

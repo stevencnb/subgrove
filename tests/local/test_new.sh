@@ -27,6 +27,13 @@ recorded_b="$(git ls-tree feat/feat-x sm-b | awk '{print $3}')"
 # subgrove changed its narration to no longer reflect what it did).
 assert_grep out "Branching 2 submodule\(s\) to feat/feat-x"
 assert_grep out "No BUILD_CHAIN configured"
+# `status` reflects the freshly-created worktree: its branch, both touched
+# submodules, and a clean state. Exercises status against new's real output.
+./subgrove status >out 2>&1
+assert_grep out "feat/feat-x"
+assert_grep out "sm-a"
+assert_grep out "sm-b"
+assert_grep out "clean"
 cleanup_fixture
 
 # --- case: touch=sm-a (subset) ---
@@ -44,6 +51,8 @@ sm_b_recorded="$(git -C .worktree/feat-y ls-tree feat/feat-y sm-b | awk '{print 
     || fail "sm-b HEAD doesn't match the parent's recorded gitlink SHA"
 # Info line reflects the selection — exactly 1 submodule branched.
 assert_grep out "Branching 1 submodule\(s\) to feat/feat-y"
+# §15: status reflects the resulting state.
+assert_status feat-y "feat/feat-y"
 cleanup_fixture
 
 # --- case: touch=none (parent only) ---
@@ -63,6 +72,8 @@ for sm in sm-a sm-b; do
 done
 # Info line explicitly confirms the touch=none path.
 assert_grep out "Submodule branching skipped \(touch=none\)"
+# §15: status reflects the resulting state.
+assert_status feat-z "feat/feat-z"
 cleanup_fixture
 
 # --- case: build=false skips BUILD_CHAIN ---
@@ -82,6 +93,8 @@ assert_file_absent .worktree/feat-build-skip/sm-a/.built
 # bug where BUILD_CMD ran in submodules outside the chain.
 assert_file_absent .worktree/feat-build-skip/sm-b/.built
 assert_grep out "Build chain skipped"
+# §15: status reflects the resulting state.
+assert_status feat-build-skip "feat/feat-build-skip"
 cleanup_fixture
 
 # --- case: build runs by default with BUILD_CHAIN ---
@@ -97,6 +110,8 @@ git add .subgroverc
 git commit --quiet -m "enable BUILD_CHAIN for test"
 ./subgrove new feat-build >out 2>&1
 assert_file_exists .worktree/feat-build/sm-a/.built
+# §15: status reflects the resulting state.
+assert_status feat-build "feat/feat-build"
 cleanup_fixture
 
 # --- case: pre-existing worktree dir refused (and untouched) ---
@@ -114,6 +129,9 @@ assert_no_branch . feat/feat-collide
 assert_file_exists .worktree/feat-collide/marker
 [[ "$(cat .worktree/feat-collide/marker)" == "sentinel" ]] \
     || fail "pre-existing dir contents modified by failed new"
+# §15: status reflects the resulting state. The pre-existing dir is still
+# present, so status lists it (no feat branch was created — name only).
+assert_status feat-collide
 cleanup_fixture
 
 # --- case: pre-existing parent branch refused (branch SHA unchanged) ---
@@ -129,6 +147,9 @@ assert_grep out "branch 'feat/feat-pre' already exists in parent repo"
 assert_file_absent .worktree/feat-pre
 # Pre-existing branch SHA unchanged.
 assert_branch_at . feat/feat-pre "$pre_branch_sha"
+# §15: status reflects the resulting state. new refused before creating the
+# worktree, so feat-pre is not listed (only the bare branch exists).
+assert_status_absent feat-pre
 cleanup_fixture
 
 # --- case: linked-worktree refusal ---
@@ -143,6 +164,10 @@ if ./subgrove new feat-from-linked >out 2>&1; then
 fi
 assert_grep out "main worktree"
 cd "$FIXTURE_SUPER"
+# §15: status reflects the resulting state. feat-host was created; the
+# linked-worktree attempt for feat-from-linked refused, so it never exists.
+assert_status feat-host "feat/feat-host"
+assert_status_absent feat-from-linked
 cleanup_fixture
 
 # --- case: missing .worktree/ in .gitignore (no side effects) ---
@@ -160,6 +185,9 @@ assert_grep out "\.worktree/ is not gitignored"
 # worktree dir, no parent branch should exist.
 assert_file_absent .worktree/feat-noignore
 assert_no_branch . feat/feat-noignore
+# §15: status reflects the resulting state. new refused before creating any
+# worktree, so none exist.
+assert_status "no feature worktrees yet"
 cleanup_fixture
 
 # --- case: invalid name rejected (per-pattern error messages) ---
@@ -204,6 +232,9 @@ assert_grep out "feature name required"
     || fail ".worktree/ should be empty after invalid-name rejections"
 [[ -z "$(git for-each-ref --format='%(refname:short)' refs/heads/feat/ 2>/dev/null)" ]] \
     || fail "no feat/ branches should exist after invalid-name rejections"
+# §15: status reflects the resulting state. Every name was rejected before
+# any side effect, so no worktrees exist.
+assert_status "no feature worktrees yet"
 cleanup_fixture
 
 # --- case: rollback on submodule-init failure ---
@@ -232,6 +263,9 @@ assert_state_eq "$FIXTURE_ROOT/sm-a" "$sibling_a_state"
     || fail ".gitignore modified by failed new"
 [[ "$(cat .subgroverc)" == "$subgroverc_before" ]] \
     || fail ".subgroverc modified by failed new"
+# §15: status reflects the resulting state. Rollback removed the half-built
+# worktree, so none exist.
+assert_status "no feature worktrees yet"
 cleanup_fixture
 
 # --- case: COPY_TO_NEW_WORKTREE copies items from main super ---
@@ -261,6 +295,8 @@ assert_file_exists .copy-me
 assert_file_exists .copy-dir/file
 [[ "$(cat .copy-me)" == "shared config" ]] \
     || fail "main super's .copy-me modified by COPY_TO_NEW_WORKTREE"
+# §15: status reflects the resulting state.
+assert_status feat-copy "feat/feat-copy"
 cleanup_fixture
 
 # --- case: COPY_TO_NEW_WORKTREE silently skips missing items ---
@@ -276,6 +312,8 @@ git add .subgroverc
 git commit --quiet -m "configure COPY_TO_NEW_WORKTREE with missing item"
 ./subgrove new feat-skip >out 2>&1
 assert_file_absent .worktree/feat-skip/.nonexistent-file
+# §15: status reflects the resulting state.
+assert_status feat-skip "feat/feat-skip"
 cleanup_fixture
 
 # --- case: rollback keeps a branch that gained commits ---
@@ -305,6 +343,9 @@ assert_branch_at . feat/feat-x
 assert_commits_ahead . main feat/feat-x 1
 assert_grep out "advanced past its creation point"
 assert_ne "$base_sha" "$(git rev-parse feat/feat-x)" "feat branch should have advanced"
+# §15: status reflects the resulting state. The worktree was torn down (only
+# the surviving branch remains, which status doesn't list), so none exist.
+assert_status "no feature worktrees yet"
 cleanup_fixture
 
 # --- case: touch= with nonexistent submodule name refused ---
@@ -319,6 +360,9 @@ assert_grep out "no such submodule path"
 # Rollback fires, so the worktree dir is cleaned up.
 assert_file_absent .worktree/feat-bad-touch
 assert_no_branch . feat/feat-bad-touch
+# §15: status reflects the resulting state. Rollback removed the worktree, so
+# none exist.
+assert_status "no feature worktrees yet"
 cleanup_fixture
 
 # --- case: BUILD_CHAIN runs each module in declared order ---
@@ -345,6 +389,8 @@ assert_file_exists .worktree/feat-multi/sm-b/.built
     || fail "sm-a should be built 1st (got: $(cat .worktree/feat-multi/sm-a/.built-order))"
 [[ "$(cat .worktree/feat-multi/sm-b/.built-order)" == "2" ]] \
     || fail "sm-b should be built 2nd (got: $(cat .worktree/feat-multi/sm-b/.built-order))"
+# §15: status reflects the resulting state.
+assert_status feat-multi "feat/feat-multi"
 cleanup_fixture
 
 # --- case: discovery keys off the CWD's repo, not the script's location ---
@@ -367,6 +413,9 @@ assert_grep out "not in a git repo"
     || fail "new must not touch the script's repo when run from outside it"
 cd "$FIXTURE_SUPER"
 rm -rf "$outside"
+# §15: status reflects the resulting state. The refusal touched nothing in
+# the repo, so no worktrees exist.
+assert_status "no feature worktrees yet"
 cleanup_fixture
 
 # --- case: dirty main super doesn't block new (and dirty is preserved) ---
@@ -389,6 +438,8 @@ assert_head_on .worktree/feat-x feat/feat-x
 assert_pending_file .    README unstaged
 assert_pending_file sm-a README unstaged
 assert_pending_file sm-b README unstaged
+# §15: status reflects the resulting state.
+assert_status feat-x "feat/feat-x"
 cleanup_fixture
 
 # --- case: custom WORKTREES_DIR places the worktree in the configured folder ---
@@ -415,4 +466,7 @@ assert_file_absent .worktree/feat-x
 assert_head_on wt/feat-x feat/feat-x
 assert_head_on wt/feat-x/sm-a feat/feat-x
 assert_head_on wt/feat-x/sm-b feat/feat-x
+# §15: status reflects the resulting state (status reads WORKTREES_DIR, so it
+# finds the worktree under the configured folder).
+assert_status feat-x "feat/feat-x"
 cleanup_fixture

@@ -37,6 +37,8 @@ assert_file_absent .worktree/feat-rmnp
 assert_eq "$super_pre" "$(_origin_main "$SUBGROVE_TEST_SUPER_NO_SM_URL")" \
     "super origin unchanged"
 assert_state_eq . "$state_main" "[no_push] main super"
+# §15: status reflects the resulting state (last/only worktree removed).
+assert_status "no feature worktrees yet"
 cleanup_fixture_remote_no_sm
 
 # --- case: remove after merge push=true — pushed main untouched, parent feat branch retained ---
@@ -67,6 +69,9 @@ assert_eq "$super_post" "$(_origin_main "$SUBGROVE_TEST_SUPER_NO_SM_URL")" \
 assert_state_eq . "$state_main" "[after_push] main super"
 # Parent feat branch retained locally (lifecycle.md "branches retained").
 assert_branch_at . feat/feat-rmap
+# §15: status reflects the resulting state (last/only worktree removed;
+# the retained branch is not a worktree, so it doesn't show as a row).
+assert_status "no feature worktrees yet"
 cleanup_fixture_remote_no_sm
 
 # --- case: dirty parent worktree refused ---
@@ -93,6 +98,8 @@ assert_state_eq . "$main_state" "[dirty_parent] main super"
 # Origin untouched on refuse.
 assert_eq "$super_pre" "$(_origin_main "$SUBGROVE_TEST_SUPER_NO_SM_URL")" \
     "origin unchanged on refuse"
+# §15: status reflects the resulting state (worktree retained on refuse).
+assert_status feat-x "feat/feat-x"
 cleanup_fixture_remote_no_sm
 
 # --- case: -f overrides dirty parent + parent feat branch preserved ---
@@ -113,6 +120,9 @@ assert_file_absent .worktree/feat-x
 assert_branch_at . feat/feat-x "$feat_sha_before"
 # Main super preserved (rule: remove preserves main super every case).
 assert_state_eq . "$main_state" "[force_short] main super"
+# §15: status reflects the resulting state (last/only worktree removed;
+# retained branch is not a worktree row).
+assert_status "no feature worktrees yet"
 cleanup_fixture_remote_no_sm
 
 # --- case: --force alias + branch preserved ---
@@ -127,6 +137,9 @@ main_state="$(snapshot_state .)"
 assert_file_absent .worktree/feat-x
 assert_branch_at . feat/feat-x "$feat_sha_before"
 assert_state_eq . "$main_state" "[force_long] main super"
+# §15: status reflects the resulting state (last/only worktree removed;
+# retained branch is not a worktree row).
+assert_status "no feature worktrees yet"
 cleanup_fixture_remote_no_sm
 
 # --- case: force=true alias + branch preserved ---
@@ -141,6 +154,9 @@ main_state="$(snapshot_state .)"
 assert_file_absent .worktree/feat-x
 assert_branch_at . feat/feat-x "$feat_sha_before"
 assert_state_eq . "$main_state" "[force_kv] main super"
+# §15: status reflects the resulting state (last/only worktree removed;
+# retained branch is not a worktree row).
+assert_status "no feature worktrees yet"
 cleanup_fixture_remote_no_sm
 
 # --- case: nonexistent name errs ---
@@ -150,6 +166,8 @@ if ./subgrove remove never-existed >out 2>&1; then
     fail "expected remove to err on nonexistent name"
 fi
 assert_grep out "does not exist"
+# §15: status reflects the resulting state (no worktree was ever created).
+assert_status "no feature worktrees yet"
 cleanup_fixture_remote_no_sm
 
 # --- case: multi-worktree — remove middle, others survive ---
@@ -188,4 +206,7 @@ assert_branch_at . feat/feat-c
 # Origin frozen.
 assert_eq "$super_pre" "$(_origin_main "$SUBGROVE_TEST_SUPER_NO_SM_URL")" \
     "origin unchanged by remove"
+# §15: status reflects the resulting state (feat-b gone; siblings remain).
+assert_status_absent feat-b
+assert_status feat-a feat-c "feat/feat-a" "feat/feat-c"
 cleanup_fixture_remote_no_sm

@@ -76,6 +76,9 @@ _run_cell() {
     # snapshot_state excludes refs).
     assert_state_eq . "$state_main" "[$label] main super"
 
+    # §15: status reflects the resulting state.
+    assert_status feat-x "feat/feat-x"
+
     cleanup_fixture_remote_no_sm
 }
 

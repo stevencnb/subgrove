@@ -51,6 +51,8 @@ assert_grep out "Push skipped \(push=true to enable\)"
 # Worktree retained + byte-identical (Phase 2 only mutates main super).
 assert_file_exists .worktree/feat-g
 assert_state_eq .worktree/feat-g "$state_wt" "[golden] feat worktree"
+# §15: status reflects the resulting state (merge retains the worktree).
+assert_status feat-g "feat/feat-g"
 cleanup_fixture_remote_no_sm
 
 # --- case: multi-commit feat — history correctness without push ---
@@ -84,6 +86,8 @@ done
 assert_eq "$super_pre" "$(_origin_main "$SUBGROVE_TEST_SUPER_NO_SM_URL")" \
     "super origin must not move on push=false (multi-commit)"
 assert_state_eq .worktree/feat-mc "$state_wt" "[multi_commit] feat worktree"
+# §15: status reflects the resulting state (merge retains the worktree).
+assert_status feat-mc "feat/feat-mc"
 cleanup_fixture_remote_no_sm
 
 # --- case: nothing to merge (feat tip == main tip) ---
@@ -111,6 +115,8 @@ assert_eq "$super_pre" "$(_origin_main "$SUBGROVE_TEST_SUPER_NO_SM_URL")" \
 assert_grep_v out "Fast-forwarding parent main"
 # Push-skipped variant for push=false default.
 assert_grep out "Push skipped \(push=true to enable\)"
+# §15: status reflects the resulting state (worktree retained on no-op).
+assert_status feat-n "feat/feat-n"
 cleanup_fixture_remote_no_sm
 
 # --- case: non-FF parent refused ---
@@ -143,6 +149,8 @@ assert_state_eq .worktree/feat-x "$wt_state" "[non_ff] feat worktree"
 assert_eq "$super_pre" "$(_origin_main "$SUBGROVE_TEST_SUPER_NO_SM_URL")" \
     "super origin unchanged on non-FF refuse"
 assert_grep_v out "Fast-forwarding parent main"
+# §15: status reflects the resulting state (worktree retained on refuse).
+assert_status feat-x "feat/feat-x"
 cleanup_fixture_remote_no_sm
 
 # --- case: nonexistent branch errs ---
@@ -152,6 +160,8 @@ if ./subgrove merge never-existed >out 2>&1; then
     fail "expected merge to err on nonexistent branch name"
 fi
 assert_grep out "does not exist"
+# §15: status reflects the resulting state (no worktree was created).
+assert_status "no feature worktrees yet"
 cleanup_fixture_remote_no_sm
 
 # --- case: dirty parent (dst) refused (push=false) ---
@@ -181,6 +191,8 @@ assert_state_eq .worktree/feat-x "$wt_state" "[dirty] feat worktree"
 assert_eq "$super_pre" "$(_origin_main "$SUBGROVE_TEST_SUPER_NO_SM_URL")" \
     "super origin unchanged on dirty refuse"
 assert_grep_v out "Fast-forwarding parent main"
+# §15: status reflects the resulting state (worktree retained on refuse).
+assert_status feat-x "feat/feat-x"
 cleanup_fixture_remote_no_sm
 
 # --- case: two peer worktrees — merging one doesn't touch the other ---
@@ -213,4 +225,6 @@ assert_grep out "Fast-forwarding parent main"
 # Source worktree (merged from) AND bystander peer both byte-identical.
 assert_state_eq .worktree/feat-x "$state_x" "[two_peer] feat-x (source) untouched"
 assert_state_eq .worktree/feat-y "$state_y" "[two_peer] feat-y (bystander) untouched"
+# §15: status reflects the resulting state (both worktrees retained).
+assert_status feat-x feat-y "feat/feat-x" "feat/feat-y"
 cleanup_fixture_remote_no_sm

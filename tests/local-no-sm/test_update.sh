@@ -23,6 +23,8 @@ assert_grep out "FF-updating peer worktree 'feat-y' submodule mains from origin/
 assert_grep out "Updated 0 submodule main\(s\); 0 skipped"
 # Rebase guidance is unconditional and still printed.
 assert_grep out "git submodule foreach 'git rebase main'"
+# §15: status reflects the resulting state.
+assert_status feat-y "feat/feat-y"
 cleanup_fixture
 
 # --- case: sentinel ref never created in main super ---
@@ -46,6 +48,8 @@ for ref in refs/heads/_update_sync refs/_update_sync refs/remotes/origin/_update
         fail "main super has $ref after update on no-sm fixture"
     fi
 done
+# §15: status reflects the resulting state.
+assert_status feat-y "feat/feat-y"
 cleanup_fixture
 
 # --- case: pre-existing _update_sync ref in parent is untouched ---
@@ -70,6 +74,8 @@ post_remote="$(git rev-parse --verify --quiet refs/remotes/origin/_update_sync 2
 assert_eq "$pre_heads"  "$post_heads"  "refs/heads/_update_sync changed during update"
 assert_eq "$pre_root"   "$post_root"   "refs/_update_sync changed during update"
 assert_eq "$pre_remote" "$post_remote" "refs/remotes/origin/_update_sync changed during update"
+# §15: status reflects the resulting state.
+assert_status feat-y "feat/feat-y"
 cleanup_fixture
 
 # --- case: nonexistent name errs ---
@@ -79,6 +85,8 @@ if ./subgrove update never-existed >out 2>&1; then
     fail "expected update to err on nonexistent worktree name"
 fi
 assert_grep out "does not exist"
+# §15: status reflects the resulting state. No worktree was ever created.
+assert_status "no feature worktrees yet"
 cleanup_fixture
 
 # --- case: doesn't require clean state ---
@@ -93,4 +101,6 @@ assert_pending_file .worktree/feat-y README unstaged
 assert_grep out "Updated 0 submodule main\(s\); 0 skipped"
 # Dirty edit preserved.
 assert_pending_file .worktree/feat-y README unstaged
+# §15: status reflects the resulting state.
+assert_status feat-y "feat/feat-y"
 cleanup_fixture

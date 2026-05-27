@@ -37,6 +37,8 @@ assert_branch_at . feat/feat-golden "$(git rev-parse main)"
 assert_state_eq .    "$state_main_p" "[golden] main super parent"
 assert_state_eq sm-a "$state_main_a" "[golden] main super sm-a"
 assert_state_eq sm-b "$state_main_b" "[golden] main super sm-b"
+# §15: status reflects the resulting state.
+assert_status feat-golden "feat/feat-golden"
 cleanup_fixture_remote
 
 # --- case: super origin ahead — feat branch uses origin/main as base ---
@@ -60,6 +62,8 @@ assert_head_on .worktree/feat-up/sm-b feat/feat-up
 assert_state_eq .    "$state_main_p" "[super_ahead] main super parent"
 assert_state_eq sm-a "$state_main_a" "[super_ahead] main super sm-a"
 assert_state_eq sm-b "$state_main_b" "[super_ahead] main super sm-b"
+# §15: status reflects the resulting state.
+assert_status feat-up "feat/feat-up"
 cleanup_fixture_remote
 
 # --- case: super origin diverged — local main has its own commits ---
@@ -97,6 +101,8 @@ assert_branch_at . main "$local_sha"
 assert_state_eq .    "$state_main_p" "[diverged] main super parent"
 assert_state_eq sm-a "$state_main_a" "[diverged] main super sm-a"
 assert_state_eq sm-b "$state_main_b" "[diverged] main super sm-b"
+# §15: status reflects the resulting state.
+assert_status feat-div "feat/feat-div"
 cleanup_fixture_remote
 
 # --- case: per-submodule origin ahead does NOT change feat base ---
@@ -130,6 +136,8 @@ assert_branch_at .worktree/feat-smup/sm-b feat/feat-smup "$recorded_b"
 assert_state_eq .    "$state_main_p" "[sm_ahead] main super parent"
 assert_state_eq sm-a "$state_main_a" "[sm_ahead] main super sm-a"
 assert_state_eq sm-b "$state_main_b" "[sm_ahead] main super sm-b"
+# §15: status reflects the resulting state.
+assert_status feat-smup "feat/feat-smup"
 cleanup_fixture_remote
 
 # --- case: parent branch already exists locally → refused ---
@@ -165,6 +173,8 @@ assert_state_eq sm-b                 "$state_main_b" "[collision] main super sm-
 assert_state_eq .worktree/feat-x      "$state_wt_p" "[collision] existing feat worktree parent"
 assert_state_eq .worktree/feat-x/sm-a "$state_wt_a" "[collision] existing feat worktree sm-a"
 assert_state_eq .worktree/feat-x/sm-b "$state_wt_b" "[collision] existing feat worktree sm-b"
+# §15: status reflects the resulting state.
+assert_status feat-x "feat/feat-x"
 cleanup_fixture_remote
 
 # --- case: custom WORKTREES_DIR honored against a real origin clone ---
@@ -190,4 +200,6 @@ assert_file_absent .worktree/feat-wtdir
 assert_head_on wt/feat-wtdir feat/feat-wtdir
 assert_head_on wt/feat-wtdir/sm-a feat/feat-wtdir
 assert_head_on wt/feat-wtdir/sm-b feat/feat-wtdir
+# §15: status reflects the resulting state.
+assert_status feat-wtdir "feat/feat-wtdir"
 cleanup_fixture_remote

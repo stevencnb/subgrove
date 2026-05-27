@@ -188,6 +188,9 @@ _run_case() {
             && { echo "[$label]"; cat out; fail "Phase 2 info line emitted on refuse"; } || true
         grep -qE "Fast-forwarding parent main" out \
             && { echo "[$label]"; cat out; fail "parent FF info line emitted on refuse"; } || true
+        # §15: status reflects the resulting state. A refused merge retains
+        # the worktree.
+        assert_status feat-x "feat/feat-x"
     elif [[ "$any_commits" -eq 0 ]]; then
         # All clean + no commits → "Nothing to merge" + no state changes
         # anywhere (Phase 0 filter empties needs_merge, parent_needs_merge
@@ -202,6 +205,9 @@ _run_case() {
         assert_state_eq .worktree/feat-x      "$state_wt_p"   "[$label] worktree parent"
         assert_state_eq .worktree/feat-x/sm-a "$state_wt_a"   "[$label] worktree sm-a"
         assert_state_eq .worktree/feat-x/sm-b "$state_wt_b"   "[$label] worktree sm-b"
+        # §15: status reflects the resulting state. A no-op merge retains the
+        # worktree.
+        assert_status feat-x "feat/feat-x"
     else
         # Clean, has commits → merge succeeds; advance per commits.
         # Worktree is retained as-is (refs + working tree + index).
@@ -247,6 +253,9 @@ _run_case() {
         assert_state_eq .worktree/feat-x      "$state_wt_p" "[$label] worktree parent (success)"
         assert_state_eq .worktree/feat-x/sm-a "$state_wt_a" "[$label] worktree sm-a (success)"
         assert_state_eq .worktree/feat-x/sm-b "$state_wt_b" "[$label] worktree sm-b (success)"
+        # §15: status reflects the resulting state. A successful merge retains
+        # the worktree.
+        assert_status feat-x "feat/feat-x"
     fi
 
     cleanup_fixture

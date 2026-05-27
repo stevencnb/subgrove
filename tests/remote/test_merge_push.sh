@@ -54,6 +54,8 @@ feat_sm_b="$( git -C .worktree/feat-g/sm-b rev-parse feat/feat-g)"
 assert_eq "$feat_super" "$(_origin_main "$SUBGROVE_TEST_SUPER_URL")" "super origin = feat tip"
 assert_eq "$feat_sm_a"  "$(_origin_main "$SUBGROVE_TEST_SM_URL")"    "sm-a origin = feat tip"
 assert_eq "$feat_sm_b"  "$(_origin_main "$SUBGROVE_TEST_SM_URL2")"   "sm-b origin = feat tip"
+# §15: status reflects the resulting state.
+assert_status feat-g "feat/feat-g"
 cleanup_fixture_remote
 
 # --- case: super only — parent edit, no submodule changes; only super pushed ---
@@ -83,6 +85,8 @@ feat_super="$(git -C .worktree/feat-so rev-parse feat/feat-so)"
 assert_eq "$feat_super" "$(_origin_main "$SUBGROVE_TEST_SUPER_URL")" "super advanced"
 assert_eq "$sm_a_pre"   "$(_origin_main "$SUBGROVE_TEST_SM_URL")"    "sm-a unchanged"
 assert_eq "$sm_b_pre"   "$(_origin_main "$SUBGROVE_TEST_SM_URL2")"   "sm-b unchanged"
+# §15: status reflects the resulting state.
+assert_status feat-so "feat/feat-so"
 cleanup_fixture_remote
 
 # --- case: one sm — sm-a touched, sm-b not; sm-b origin stays put ---
@@ -111,6 +115,8 @@ feat_sm_a="$( git -C .worktree/feat-1/sm-a rev-parse feat/feat-1)"
 assert_eq "$feat_super" "$(_origin_main "$SUBGROVE_TEST_SUPER_URL")" "super advanced"
 assert_eq "$feat_sm_a"  "$(_origin_main "$SUBGROVE_TEST_SM_URL")"    "sm-a advanced"
 assert_eq "$sm_b_pre"   "$(_origin_main "$SUBGROVE_TEST_SM_URL2")"   "sm-b unchanged"
+# §15: status reflects the resulting state.
+assert_status feat-1 "feat/feat-1"
 cleanup_fixture_remote
 
 # --- case: nothing to push — no edits anywhere; output narrates skip ---
@@ -146,6 +152,8 @@ assert_state_eq sm-b                  "$state_main_b" "[nothing] main super sm-b
 assert_eq "$super_pre" "$(_origin_main "$SUBGROVE_TEST_SUPER_URL")" "super unchanged"
 assert_eq "$sm_a_pre"  "$(_origin_main "$SUBGROVE_TEST_SM_URL")"    "sm-a unchanged"
 assert_eq "$sm_b_pre"  "$(_origin_main "$SUBGROVE_TEST_SM_URL2")"   "sm-b unchanged"
+# §15: status reflects the resulting state.
+assert_status feat-n "feat/feat-n"
 cleanup_fixture_remote
 
 # --- case: non-FF super — origin/super advanced; super push rejected ---
@@ -180,6 +188,8 @@ assert_eq "$upstream_sha" "$(_origin_main "$SUBGROVE_TEST_SUPER_URL")" \
 assert_state_eq .worktree/feat-nffs      "$state_wt_p" "[non_ff_super] feat worktree parent"
 assert_state_eq .worktree/feat-nffs/sm-a "$state_wt_a" "[non_ff_super] feat worktree sm-a"
 assert_state_eq .worktree/feat-nffs/sm-b "$state_wt_b" "[non_ff_super] feat worktree sm-b"
+# §15: status reflects the resulting state.
+assert_status feat-nffs "feat/feat-nffs"
 cleanup_fixture_remote
 
 # --- case: non-FF sm-a — origin/sm-a advanced; sm-a push rejected, super never pushed ---
@@ -215,6 +225,8 @@ assert_eq "$super_pre"     "$(_origin_main "$SUBGROVE_TEST_SUPER_URL")" "super n
 assert_state_eq .worktree/feat-nffsm      "$state_wt_p" "[non_ff_sm] feat worktree parent"
 assert_state_eq .worktree/feat-nffsm/sm-a "$state_wt_a" "[non_ff_sm] feat worktree sm-a"
 assert_state_eq .worktree/feat-nffsm/sm-b "$state_wt_b" "[non_ff_sm] feat worktree sm-b"
+# §15: status reflects the resulting state.
+assert_status feat-nffsm "feat/feat-nffsm"
 cleanup_fixture_remote
 
 # --- case: partial failure — sm-a pushes OK, sm-b push rejected ---
@@ -255,4 +267,6 @@ assert_eq "$super_pre"     "$(_origin_main "$SUBGROVE_TEST_SUPER_URL")" "super n
 assert_state_eq .worktree/feat-pf      "$state_wt_p" "[partial_fail] feat worktree parent"
 assert_state_eq .worktree/feat-pf/sm-a "$state_wt_a" "[partial_fail] feat worktree sm-a"
 assert_state_eq .worktree/feat-pf/sm-b "$state_wt_b" "[partial_fail] feat worktree sm-b"
+# §15: status reflects the resulting state.
+assert_status feat-pf "feat/feat-pf"
 cleanup_fixture_remote

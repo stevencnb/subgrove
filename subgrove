@@ -26,6 +26,8 @@
 #   subgrove update <name>                 Fetch origin in main worktree, then FF each submodule's
 #                                            main in <name>. Manual escape hatch when a peer worktree
 #                                            needs to catch up without going through merge propagation.
+#   subgrove status [--fetch]              Per-worktree branch, touched submodules, and local + origin/main
+#                                            state. Read-only; --fetch refreshes origin/main first.
 #   subgrove list                          Show worktrees and their feature branches.
 #   subgrove help                          Show this help.
 #   subgrove --version                     Print the version.
@@ -96,6 +98,7 @@ subgrove - parallel feature worktrees for a git superproject with submodules
   subgrove remove <name>                 Remove worktree (refuses if dirty; branches remain).
   subgrove remove <name> -f              Discard uncommitted work and force-remove (force=true).
   subgrove update <name>                 Catch a peer worktree up to origin/main without merging.
+  subgrove status [--fetch]              Per-worktree branch, touched submodules, local + remote state.
   subgrove list                          Show worktrees and their feature branches.
   subgrove help                          Show this help.
   subgrove --version                     Print the version.
@@ -695,6 +698,144 @@ cmd_list() {
     git worktree list
 }
 
+# ---- status helpers -----------------------------------------------------
+#
+# status is read-only and offline by default (see docs/design/status.md).
+# These helpers exist only for cmd_status — the _status_ prefix mirrors the
+# _init_ wizard helpers — and lean on the shared is_clean/list_all_submodules.
+# Each one returns 0 on every path: several are called via command
+# substitution, where a non-zero return would trip `set -e`.
+
+# _status_join SEP ELEM...  ->  "ELEM1<SEP>ELEM2..."
+_status_join() {
+    local sep="$1"; shift
+    local out="" e
+    for e in "$@"; do
+        out="${out:+$out$sep}$e"
+    done
+    printf '%s' "$out"
+}
+
+# _status_ahead_behind DIR BASE TIP  ->  "↑A ↓B" (zero sides omitted; empty
+# when either ref is missing or the two refs are identical).
+_status_ahead_behind() {
+    local dir="$1" base="$2" tip="$3" counts behind ahead out=""
+    git -C "$dir" rev-parse --verify --quiet "$base" >/dev/null 2>&1 || return 0
+    git -C "$dir" rev-parse --verify --quiet "$tip"  >/dev/null 2>&1 || return 0
+    counts="$(git -C "$dir" rev-list --left-right --count "$base...$tip" 2>/dev/null)" || return 0
+    # `--left-right --count` prints "<left> <right>": left = commits in BASE
+    # not TIP (TIP is behind by that many), right = commits in TIP not BASE.
+    read -r behind ahead <<<"$counts" || true
+    [[ "${ahead:-0}"  != "0" ]] && out="↑$ahead"
+    [[ "${behind:-0}" != "0" ]] && out="${out:+$out }↓$behind"
+    printf '%s' "$out"
+}
+
+# _status_behind_origin DIR  ->  count of commits DIR's HEAD trails
+# refs/remotes/origin/main by (empty when there is no such ref or it's not
+# behind). Flags submodules that lag the published main — the "run update" case.
+_status_behind_origin() {
+    local dir="$1" n
+    git -C "$dir" rev-parse --verify --quiet refs/remotes/origin/main >/dev/null 2>&1 || return 0
+    n="$(git -C "$dir" rev-list --count "HEAD..refs/remotes/origin/main" 2>/dev/null)" || return 0
+    [[ "$n" != "0" ]] && printf '%s' "$n"
+    return 0
+}
+
+# _status_row WT LABEL NAME FETCH
+# Prints one table row for worktree WT. LABEL is the WORKTREE-column text;
+# NAME is the feature name used in the `update` hint; FETCH=true refreshes
+# each touched submodule's origin/main first (the only network this does).
+_status_row() {
+    local wt="$1" label="$2" name="$3" fetch="$4"
+    local branch dirty=false touched=() flags=() sm
+    local submodules_col local_col remote_col ab
+
+    branch="$(git -C "$wt" rev-parse --abbrev-ref HEAD 2>/dev/null || echo '?')"
+    [[ "$branch" == "HEAD" ]] && branch="(detached)"
+
+    is_clean "$wt" || dirty=true
+
+    # "Touched" = submodules carrying the worktree's feature branch. The main
+    # worktree (branch == main) has no feature, so it lists none — otherwise
+    # every submodule would show as "touched" just for carrying main.
+    if [[ "$branch" != "main" && "$branch" != "(detached)" ]]; then
+        while IFS= read -r sm; do
+            [[ -n "$sm" ]] || continue
+            [[ -e "$wt/$sm/.git" ]] || continue
+            git -C "$wt/$sm" rev-parse --verify --quiet "refs/heads/$branch" >/dev/null 2>&1 || continue
+            local mark="" behind
+            if ! is_clean "$wt/$sm"; then mark="*"; dirty=true; fi
+            touched+=("$sm$mark")
+            if [[ "$fetch" == "true" ]]; then
+                git -C "$wt/$sm" fetch --quiet origin main 2>/dev/null || true
+            fi
+            behind="$(_status_behind_origin "$wt/$sm")"
+            if [[ -n "$behind" ]]; then
+                flags+=("$sm behind origin/main → subgrove update $name")
+            fi
+        done < <(list_all_submodules 2>/dev/null)
+    fi
+
+    if [[ ${#touched[@]} -gt 0 ]]; then
+        submodules_col="$(_status_join ", " "${touched[@]}")"
+    else
+        submodules_col="—"
+    fi
+
+    local_col="clean"; [[ "$dirty" == "true" ]] && local_col="dirty"
+    ab="$(_status_ahead_behind "$wt" "refs/heads/main" "HEAD")"
+    [[ -n "$ab" ]] && local_col="$local_col $ab"
+
+    remote_col="$(_status_ahead_behind "$wt" "refs/remotes/origin/main" "HEAD")"
+    [[ -z "$remote_col" ]] && remote_col="—"
+
+    printf '%-12s %-16s %-24s %-12s %s\n' \
+        "$label" "$branch" "$submodules_col" "$local_col" "$remote_col"
+    local f
+    for f in "${flags[@]}"; do
+        printf '    ⚠ %s\n' "$f"
+    done
+}
+
+cmd_status() {
+    local fetch=false
+    case "${1:-}" in
+        --fetch) fetch=true ;;
+    esac
+
+    discover_root
+    cd "$ROOT"
+
+    # Parent origin/main is shared across all linked worktrees, so a single
+    # fetch here refreshes it for every row; per-submodule origin/main lives
+    # in isolated git dirs and is fetched inside _status_row. A fetch advances
+    # only remote-tracking refs — no branch or working-tree mutation — so even
+    # --fetch leaves the repo's actual state untouched; default status is
+    # strictly offline and read-only.
+    if [[ "$fetch" == "true" ]]; then
+        git fetch --quiet origin main 2>/dev/null || true
+    fi
+
+    printf '%-12s %-16s %-24s %-12s %s\n' \
+        "WORKTREE" "BRANCH" "SUBMODULES (touched)" "LOCAL" "REMOTE"
+    _status_row "$ROOT" "(main)" "main" "$fetch"
+
+    local any=false peer_wt name
+    if [[ -d "$ROOT/$WORKTREES_DIR" ]]; then
+        for peer_wt in "$ROOT/$WORKTREES_DIR"/*; do
+            [[ -d "$peer_wt" ]] || continue
+            any=true
+            name="$(basename "$peer_wt")"
+            _status_row "$peer_wt" "$name" "$name" "$fetch"
+        done
+    fi
+    if [[ "$any" == "false" ]]; then
+        echo
+        echo "(no feature worktrees yet — create one with: subgrove new <name>)"
+    fi
+}
+
 # >>> generated from lib/init.sh — edit there, then run ./build.sh >>>
 # ---- init wizard --------------------------------------------------------
 #
@@ -867,6 +1008,7 @@ main() {
         merge)              cmd_merge "$@" ;;
         remove|rm)          cmd_remove "$@" ;;
         update)             cmd_update "$@" ;;
+        status)             cmd_status "$@" ;;
         list|ls)            cmd_list ;;
         help|-h|--help)     usage ;;
         version|--version)  echo "subgrove $VERSION" ;;

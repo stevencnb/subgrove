@@ -40,6 +40,8 @@ assert_state_eq .worktree/feat-g "$state_wt" "[golden] feat worktree"
 feat_super="$(git -C .worktree/feat-g rev-parse feat/feat-g)"
 assert_eq "$feat_super" "$(_origin_main "$SUBGROVE_TEST_SUPER_NO_SM_URL")" \
     "super origin = feat tip"
+# §15: status reflects the resulting state (merge retains the worktree).
+assert_status feat-g "feat/feat-g"
 cleanup_fixture_remote_no_sm
 
 # --- case: nothing to push — no edits anywhere; narration narrates skip ---
@@ -62,6 +64,8 @@ assert_state_eq .worktree/feat-n "$state_wt"  "[nothing] feat worktree"
 assert_state_eq .                "$state_main" "[nothing] main super"
 
 assert_eq "$super_pre" "$(_origin_main "$SUBGROVE_TEST_SUPER_NO_SM_URL")" "super unchanged"
+# §15: status reflects the resulting state (worktree retained on no-op).
+assert_status feat-n "feat/feat-n"
 cleanup_fixture_remote_no_sm
 
 # --- case: non-FF super — origin advanced; super push rejected ---
@@ -91,6 +95,8 @@ assert_eq "$upstream_sha" "$(_origin_main "$SUBGROVE_TEST_SUPER_NO_SM_URL")" \
 # Feat worktree untouched even though Phase 2 + push happened. User's
 # work-in-progress is preserved regardless of push outcome.
 assert_state_eq .worktree/feat-nff "$state_wt" "[non_ff] feat worktree"
+# §15: status reflects the resulting state (worktree retained on push reject).
+assert_status feat-nff "feat/feat-nff"
 cleanup_fixture_remote_no_sm
 
 # --- case: dirty parent dst refused (push never attempted) ---
@@ -126,6 +132,8 @@ assert_eq "$super_pre" "$(_origin_main "$SUBGROVE_TEST_SUPER_NO_SM_URL")" \
     "super origin frozen on refuse"
 # Phase 2 didn't run, push didn't run.
 assert_grep_v out "Fast-forwarding parent main"
+# §15: status reflects the resulting state (worktree retained on refuse).
+assert_status feat-d "feat/feat-d"
 cleanup_fixture_remote_no_sm
 
 # --- case: multi-commit feat — history correctness on push ---
@@ -159,6 +167,8 @@ assert_eq "$feat_super" "$(_origin_main "$SUBGROVE_TEST_SUPER_NO_SM_URL")" \
     "super origin = feat tip after multi-commit push"
 # Feat worktree preserved.
 assert_state_eq .worktree/feat-mc "$state_wt" "[multi_commit] feat worktree"
+# §15: status reflects the resulting state (merge retains the worktree).
+assert_status feat-mc "feat/feat-mc"
 cleanup_fixture_remote_no_sm
 
 # --- case: feat branch NOT pushed to remote ---
@@ -192,4 +202,6 @@ if echo "$remote_refs" | grep -qE "refs/heads/feat/feat-fnp"; then
 fi
 # Phase 2 only touches main super; feat worktree byte-identical.
 assert_state_eq .worktree/feat-fnp "$state_wt" "[feat_not_pushed] feat worktree"
+# §15: status reflects the resulting state (merge retains the worktree).
+assert_status feat-fnp "feat/feat-fnp"
 cleanup_fixture_remote_no_sm

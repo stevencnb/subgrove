@@ -113,6 +113,9 @@ _run_case() {
         assert_branch_at .    feat/feat-x "" "[$label] parent feat retained"
         assert_branch_at sm-a feat/feat-x "$sm_a_recorded" "[$label] sm-a feat preserved at recorded SHA"
         assert_branch_at sm-b feat/feat-x "$sm_b_recorded" "[$label] sm-b feat preserved at recorded SHA"
+        # §15: status reflects the resulting state. A successful force-remove
+        # drops the worktree, so feat-x is no longer listed.
+        assert_status_absent feat-x
     elif [[ "$any_dirty" -eq 1 ]]; then
         # Dirty without force → refuse + dirty edit preserved everywhere.
         [[ "$remove_failed" -eq 1 ]] \
@@ -129,6 +132,9 @@ _run_case() {
         # And the "Preserved N" info line must NOT appear.
         grep -qE "Preserved.*submodule feat branch" out \
             && { echo "[$label]"; cat out; fail "preservation info line emitted on refuse"; } || true
+        # §15: status reflects the resulting state. A refused remove retains
+        # the worktree.
+        assert_status feat-x "feat/feat-x"
     else
         # All clean, no force → succeed. Same preservation as force=1.
         [[ "$remove_failed" -eq 0 ]] \
@@ -138,6 +144,9 @@ _run_case() {
         assert_branch_at .    feat/feat-x "" "[$label] parent feat retained"
         assert_branch_at sm-a feat/feat-x "$sm_a_recorded" "[$label] sm-a feat preserved at recorded SHA"
         assert_branch_at sm-b feat/feat-x "$sm_b_recorded" "[$label] sm-b feat preserved at recorded SHA"
+        # §15: status reflects the resulting state. A successful clean remove
+        # drops the worktree, so feat-x is no longer listed.
+        assert_status_absent feat-x
     fi
 
     cleanup_fixture

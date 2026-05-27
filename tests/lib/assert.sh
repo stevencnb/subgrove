@@ -216,3 +216,38 @@ assert_pending_submodule() {
     [[ "$actual" == " M $sm" ]] \
         || fail "${msg:+$msg: }$dir: expected '$sm' as M (submodule SHA delta), got: '$actual'"
 }
+
+# assert_status PATTERN...
+# Run `subgrove status` (read-only) from the current worktree super and
+# assert each PATTERN (ERE) appears in its output. Encodes the suite rule
+# (docs/design/testing.md §15) that a state-changing command's test also
+# verifies the resulting state through `status`. Captures into a variable,
+# so it never clobbers the conventional `out` file. Requires the cwd to be a
+# worktree where `./subgrove` resolves and `discover_root` succeeds (i.e.
+# $FIXTURE_SUPER), which every scenario already cd's into.
+assert_status() {
+    local sout p
+    sout="$(./subgrove status 2>&1)" \
+        || { printf '%s\n' "$sout" >&2; fail "subgrove status exited non-zero"; }
+    for p in "$@"; do
+        if ! grep -qE -- "$p" <<<"$sout"; then
+            printf '%s\n' "--- subgrove status ---" "$sout" "--- end ---" >&2
+            fail "status output missing pattern: $p"
+        fi
+    done
+}
+
+# assert_status_absent PATTERN...
+# Inverse of assert_status: each PATTERN must NOT appear in `subgrove status`
+# output (e.g. a feature name after a successful `remove`).
+assert_status_absent() {
+    local sout p
+    sout="$(./subgrove status 2>&1)" \
+        || { printf '%s\n' "$sout" >&2; fail "subgrove status exited non-zero"; }
+    for p in "$@"; do
+        if grep -qE -- "$p" <<<"$sout"; then
+            printf '%s\n' "--- subgrove status ---" "$sout" "--- end ---" >&2
+            fail "status output unexpectedly contains: $p"
+        fi
+    done
+}

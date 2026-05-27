@@ -126,6 +126,9 @@ _run_cell() {
     assert_state_eq .worktree/feat-x/sm-a "$state_wt_a" "[$label] peer sm-a"
     assert_state_eq .worktree/feat-x/sm-b "$state_wt_b" "[$label] peer sm-b"
 
+    # §15: status reflects the resulting state.
+    assert_status feat-x "feat/feat-x"
+
     cleanup_fixture_remote
 }
 

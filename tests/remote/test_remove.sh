@@ -47,6 +47,8 @@ assert_eq "$sm_b_pre"  "$(_origin_main "$SUBGROVE_TEST_SM_URL2")"   "sm-b origin
 assert_state_eq .    "$state_main_p" "[no_push] main super parent"
 assert_state_eq sm-a "$state_main_a" "[no_push] main super sm-a"
 assert_state_eq sm-b "$state_main_b" "[no_push] main super sm-b"
+# §15: status reflects the resulting state.
+assert_status "no feature worktrees yet"
 cleanup_fixture_remote
 
 # --- case: remove after merge push=true — pushed main untouched, feat branches retained locally ---
@@ -86,4 +88,6 @@ assert_state_eq sm-b "$state_main_b" "[after_push] main super sm-b"
 assert_branch_at . feat/feat-rmap
 # Submodule feat branches preserved into main worktree's submodule git dirs.
 assert_branch_at sm-a feat/feat-rmap
+# §15: status reflects the resulting state.
+assert_status "no feature worktrees yet"
 cleanup_fixture_remote

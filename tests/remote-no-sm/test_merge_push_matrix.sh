@@ -69,6 +69,10 @@ _run_cell() {
         assert_eq "0" "$rc" "[$label] merge should succeed (rc=0)"
     fi
 
+    # §15: status reflects the resulting state (merge retains the worktree
+    # in both cells, including the rejected-push cell).
+    assert_status feat-x "feat/feat-x"
+
     cleanup_fixture_remote_no_sm
 }
 

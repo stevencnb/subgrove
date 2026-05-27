@@ -24,6 +24,8 @@ assert_grep_v out "Preserved [0-9]+ submodule feat branch"
 # The "branches retained" narration in the remove-message still fires
 # (refers to the parent branch).
 assert_grep out "branches retained"
+# §15: status reflects the resulting state. feat-x was the only worktree.
+assert_status "no feature worktrees yet"
 cleanup_fixture
 
 # --- case: dirty parent worktree refused ---
@@ -49,6 +51,8 @@ assert_file_exists .worktree/feat-x
 assert_pending_file .worktree/feat-x README unstaged
 # And nothing else in the worktree changed either.
 assert_state_eq .worktree/feat-x "$parent_state"
+# §15: status reflects the resulting state (refused — worktree retained).
+assert_status feat-x "feat/feat-x"
 cleanup_fixture
 
 # --- case: -f overrides dirty parent + parent feat branch preserved ---
@@ -65,6 +69,8 @@ assert_file_absent .worktree/feat-x
 # Parent feat branch retained, at the original SHA — `-f` only discards
 # the dirty working-tree edit, not the user's committed branch.
 assert_branch_at . feat/feat-x "$feat_sha_before"
+# §15: status reflects the resulting state. feat-x was the only worktree.
+assert_status "no feature worktrees yet"
 cleanup_fixture
 
 # --- case: --force alias + branch preserved ---
@@ -76,6 +82,8 @@ echo "dirty" >> .worktree/feat-x/README
 ./subgrove remove feat-x --force >out 2>&1
 assert_file_absent .worktree/feat-x
 assert_branch_at . feat/feat-x "$feat_sha_before"
+# §15: status reflects the resulting state. feat-x was the only worktree.
+assert_status "no feature worktrees yet"
 cleanup_fixture
 
 # --- case: force=true alias + branch preserved ---
@@ -87,6 +95,8 @@ echo "dirty" >> .worktree/feat-x/README
 ./subgrove remove feat-x force=true >out 2>&1
 assert_file_absent .worktree/feat-x
 assert_branch_at . feat/feat-x "$feat_sha_before"
+# §15: status reflects the resulting state. feat-x was the only worktree.
+assert_status "no feature worktrees yet"
 cleanup_fixture
 
 # --- case: nonexistent name errs ---
@@ -99,4 +109,6 @@ fi
 # for an unrelated reason (e.g., syntax error introduced earlier) doesn't
 # pass this test silently.
 assert_grep out "does not exist"
+# §15: status reflects the resulting state. No worktree was ever created.
+assert_status "no feature worktrees yet"
 cleanup_fixture

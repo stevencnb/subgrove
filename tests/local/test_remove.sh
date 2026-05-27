@@ -26,6 +26,9 @@ assert_branch_at sm-a feat/feat-x "$sm_a_feat_before"
 assert_branch_at sm-b feat/feat-x "$sm_b_feat_before"
 # User-visible info line confirms 2 branches were preserved.
 assert_grep out "Preserved 2 submodule feat branch"
+# §15: status reflects the resulting state. feat-x was the only worktree and
+# was removed, so none remain.
+assert_status "no feature worktrees yet"
 cleanup_fixture
 
 # --- case: dirty parent worktree refused — state preserved, no preservation msg ---
@@ -57,6 +60,9 @@ assert_state_eq .worktree/feat-y/sm-a "$state_wt_a"
 assert_state_eq .worktree/feat-y/sm-b "$state_wt_b"
 # Refusal happened before the preservation step — no info line.
 assert_grep_v out "Preserved.*submodule feat branch"
+# §15: status reflects the resulting state. A refused remove retains the
+# worktree.
+assert_status feat-y "feat/feat-y"
 cleanup_fixture
 
 # --- case: dirty touched submodule refused — state preserved ---
@@ -75,6 +81,9 @@ assert_file_exists .worktree/feat-y
 assert_state_eq .worktree/feat-y      "$state_wt_p"
 assert_state_eq .worktree/feat-y/sm-a "$state_wt_a"
 assert_state_eq .worktree/feat-y/sm-b "$state_wt_b"
+# §15: status reflects the resulting state. A refused remove retains the
+# worktree.
+assert_status feat-y "feat/feat-y"
 cleanup_fixture
 
 # --- case: dirty UN-touched submodule refused — state preserved ---
@@ -97,6 +106,9 @@ assert_file_exists .worktree/feat-y
 assert_state_eq .worktree/feat-y      "$state_wt_p"
 assert_state_eq .worktree/feat-y/sm-a "$state_wt_a"
 assert_state_eq .worktree/feat-y/sm-b "$state_wt_b"
+# §15: status reflects the resulting state. A refused remove retains the
+# worktree.
+assert_status feat-y "feat/feat-y"
 cleanup_fixture
 
 # --- case: -f overrides dirty + branches still preserved ---
@@ -113,6 +125,9 @@ assert_branch_at .    feat/feat-y
 assert_branch_at sm-a feat/feat-y "$sm_a_feat_before"
 assert_branch_at sm-b feat/feat-y "$sm_b_feat_before"
 assert_grep out "Preserved 2 submodule feat branch"
+# §15: status reflects the resulting state. feat-y was the only worktree and
+# was force-removed, so none remain.
+assert_status "no feature worktrees yet"
 cleanup_fixture
 
 # --- case: --force alias + preservation ---
@@ -128,6 +143,9 @@ assert_branch_at .    feat/feat-a
 assert_branch_at sm-a feat/feat-a "$sm_a_feat_before"
 assert_branch_at sm-b feat/feat-a "$sm_b_feat_before"
 assert_grep out "Preserved 2 submodule feat branch"
+# §15: status reflects the resulting state. feat-a was the only worktree and
+# was force-removed, so none remain.
+assert_status "no feature worktrees yet"
 cleanup_fixture
 
 # --- case: force=true alias + preservation ---
@@ -143,6 +161,9 @@ assert_branch_at .    feat/feat-b
 assert_branch_at sm-a feat/feat-b "$sm_a_feat_before"
 assert_branch_at sm-b feat/feat-b "$sm_b_feat_before"
 assert_grep out "Preserved 2 submodule feat branch"
+# §15: status reflects the resulting state. feat-b was the only worktree and
+# was force-removed, so none remain.
+assert_status "no feature worktrees yet"
 cleanup_fixture
 
 # --- case: nonexistent name refused ---
@@ -151,6 +172,8 @@ cd "$FIXTURE_SUPER"
 if ./subgrove remove never-existed >out 2>&1; then
     fail "expected remove to refuse on nonexistent name"
 fi
+# §15: status reflects the resulting state. No worktree was ever created.
+assert_status "no feature worktrees yet"
 cleanup_fixture
 
 # --- case: removing one worktree leaves siblings untouched ---
@@ -176,6 +199,10 @@ assert_branch_at sm-b feat/feat-a "$feat_a_sm_b_before"
 assert_state_eq .worktree/feat-b      "$feat_b_state_parent"
 assert_state_eq .worktree/feat-b/sm-a "$feat_b_state_sm_a"
 assert_state_eq .worktree/feat-b/sm-b "$feat_b_state_sm_b"
+# §15: status reflects the resulting state. feat-a was removed; feat-b
+# (a sibling worktree) is retained.
+assert_status_absent feat-a
+assert_status feat-b "feat/feat-b"
 cleanup_fixture
 
 # --- case: touch=sm-a + remove preserves only sm-a's feat (selective) ---
@@ -195,6 +222,9 @@ assert_branch_at sm-a feat/feat-y "$sm_a_feat_before"
 assert_no_branch sm-b feat/feat-y
 # Info line says exactly 1 branch was preserved.
 assert_grep out "Preserved 1 submodule feat branch"
+# §15: status reflects the resulting state. feat-y was the only worktree and
+# was removed, so none remain.
+assert_status "no feature worktrees yet"
 cleanup_fixture
 
 # --- case: preserved feat branch reflects ADVANCED state, not recorded SHA ---
@@ -225,6 +255,9 @@ assert_branch_at sm-b feat/feat-x
 assert_ancestor sm-a "$sm_a_recorded" feat/feat-x
 # Info line confirms both submodule feat branches were preserved.
 assert_grep out "Preserved 2 submodule feat branch"
+# §15: status reflects the resulting state. feat-x was the only worktree and
+# was removed, so none remain.
+assert_status "no feature worktrees yet"
 cleanup_fixture
 
 # --- case: touch=none + remove (no submodule branches to preserve) ---
@@ -243,6 +276,9 @@ assert_no_branch sm-a feat/feat-z
 assert_no_branch sm-b feat/feat-z
 # `preserved=0`, so the info line is suppressed entirely.
 assert_grep_v out "Preserved.*submodule feat branch"
+# §15: status reflects the resulting state. feat-z was the only worktree and
+# was removed, so none remain.
+assert_status "no feature worktrees yet"
 cleanup_fixture
 
 # --- case: re-create same name after remove refused; succeeds after branch deletion ---
@@ -269,6 +305,9 @@ assert_file_exists .worktree/feat-x
     || fail "sm-a HEAD doesn't match the original recorded SHA after recreate"
 [[ "$(git -C .worktree/feat-x/sm-b rev-parse HEAD)" == "$sm_b_recorded_before" ]] \
     || fail "sm-b HEAD doesn't match the original recorded SHA after recreate"
+# §15: status reflects the resulting state. The worktree was removed, then
+# recreated after deleting the retained branch — so feat-x exists again.
+assert_status feat-x "feat/feat-x"
 cleanup_fixture
 
 # --- case: preservation-fetch failure aborts before rm -rf (even under -f) ---
@@ -300,4 +339,7 @@ assert_state_eq .worktree/feat-x/sm-a "$state_wt_sm_a"
 # Err names the failed preservation; the removal info line never fired.
 assert_grep out "sm-a: failed to preserve"
 assert_grep_v out "Removing worktree at"
+# §15: status reflects the resulting state. The aborted remove retains the
+# worktree.
+assert_status feat-x "feat/feat-x"
 cleanup_fixture

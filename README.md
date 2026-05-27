@@ -71,6 +71,7 @@ subgrove remove my-feature            # tear down the worktree (branches retaine
 | `subgrove update <name>`              | Catch a peer worktree up to `origin/main` without merging.        |
 | `subgrove remove <name>`              | Remove a worktree (refuses if dirty).                             |
 | `subgrove remove <name> -f`           | Force-remove, discarding uncommitted work.                        |
+| `subgrove status [--fetch]`           | Per-worktree branch, touched submodules, local + remote state.    |
 | `subgrove list`                       | List worktrees.                                                   |
 | `subgrove help`                       | Show usage.                                                       |
 | `subgrove --version`                  | Print the version.                                                |

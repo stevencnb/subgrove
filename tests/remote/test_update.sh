@@ -45,6 +45,8 @@ assert_state_eq sm-b                 "$state_main_b" "[happy] main super sm-b"
 assert_state_eq .worktree/feat-h      "$state_wt_p"  "[happy] peer parent"
 assert_state_eq .worktree/feat-h/sm-a "$state_wt_a"  "[happy] peer sm-a"
 assert_state_eq .worktree/feat-h/sm-b "$state_wt_b"  "[happy] peer sm-b"
+# §15: status reflects the resulting state.
+assert_status feat-h "feat/feat-h"
 cleanup_fixture_remote
 
 # --- case: super origin ahead — main worktree's origin/main advances; local main untouched ---
@@ -76,6 +78,8 @@ assert_state_eq sm-b                 "$state_main_b" "[super_ahead] main super s
 assert_state_eq .worktree/feat-su      "$state_wt_p" "[super_ahead] peer parent"
 assert_state_eq .worktree/feat-su/sm-a "$state_wt_a" "[super_ahead] peer sm-a"
 assert_state_eq .worktree/feat-su/sm-b "$state_wt_b" "[super_ahead] peer sm-b"
+# §15: status reflects the resulting state.
+assert_status feat-su "feat/feat-su"
 cleanup_fixture_remote
 
 # --- case: all three origins ahead — submodule peers advance, super fetched only ---
@@ -108,6 +112,8 @@ assert_state_eq sm-b                  "$state_main_b" "[all_ahead] main super sm
 assert_state_eq .worktree/feat-all      "$state_wt_p" "[all_ahead] peer parent"
 assert_state_eq .worktree/feat-all/sm-a "$state_wt_a" "[all_ahead] peer sm-a"
 assert_state_eq .worktree/feat-all/sm-b "$state_wt_b" "[all_ahead] peer sm-b"
+# §15: status reflects the resulting state.
+assert_status feat-all "feat/feat-all"
 cleanup_fixture_remote
 
 # --- case: peer sm-a main diverged — refused with warn, peer stays put ---
@@ -155,6 +161,8 @@ assert_state_eq sm-b                 "$state_main_b" "[diverged] main super sm-b
 assert_state_eq .worktree/feat-d      "$state_wt_p" "[diverged] peer parent"
 assert_state_eq .worktree/feat-d/sm-a "$state_wt_a" "[diverged] peer sm-a"
 assert_state_eq .worktree/feat-d/sm-b "$state_wt_b" "[diverged] peer sm-b"
+# §15: status reflects the resulting state.
+assert_status feat-d "feat/feat-d"
 cleanup_fixture_remote
 
 # --- case: no drift anywhere — true no-op ---
@@ -185,4 +193,6 @@ assert_state_eq sm-b                 "$state_main_b" "[noop] main super sm-b"
 assert_state_eq .worktree/feat-n      "$state_wt_p" "[noop] peer parent"
 assert_state_eq .worktree/feat-n/sm-a "$state_wt_a" "[noop] peer sm-a"
 assert_state_eq .worktree/feat-n/sm-b "$state_wt_b" "[noop] peer sm-b"
+# §15: status reflects the resulting state.
+assert_status feat-n "feat/feat-n"
 cleanup_fixture_remote
