@@ -1,5 +1,8 @@
 # subgrove
 
+[![CI](https://github.com/stevencnb/subgrove/actions/workflows/ci.yml/badge.svg)](https://github.com/stevencnb/subgrove/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 Parallel feature development for a git superproject with submodules. One feature, one parent worktree, isolated submodule git dirs, automatic propagation of merges across linked worktrees.
 
 A single shell script. Zero install. Readable in fifteen minutes.

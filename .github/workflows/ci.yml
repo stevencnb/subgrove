@@ -1,0 +1,24 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# subgrove targets macOS bash 3.2 and modern bash alike, so the suite runs on
+# both. The local tiers need no network (they build fixtures with `git init`);
+# the GitHub-remote tiers are intentionally skipped here via --local-only.
+jobs:
+  test:
+    name: tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Built script is in sync with lib/init.sh
+        run: bash ./build.sh --check
+      - name: Local test suite (local + local-no-sm tiers)
+        run: bash ./tests/run.sh --local-only
