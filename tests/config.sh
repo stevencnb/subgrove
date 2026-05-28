@@ -27,7 +27,7 @@
 # These can also be overridden via env vars for one-off runs against a
 # different remote without editing this file.
 
-SUBGROVE_TEST_SUPER_URL="git@github.com:StevenChangZH/subgrove-test-super.git"
-SUBGROVE_TEST_SM_URL="git@github.com:StevenChangZH/subgrove-test-sm-a.git"
-SUBGROVE_TEST_SM_URL2="git@github.com:StevenChangZH/subgrove-test-sm-b.git"
-SUBGROVE_TEST_SUPER_NO_SM_URL="git@github.com:StevenChangZH/subgrove-test-super-no-sm.git"
+SUBGROVE_TEST_SUPER_URL="git@github.com:stevencnb/subgrove-test-super.git"
+SUBGROVE_TEST_SM_URL="git@github.com:stevencnb/subgrove-test-sm-a.git"
+SUBGROVE_TEST_SM_URL2="git@github.com:stevencnb/subgrove-test-sm-b.git"
+SUBGROVE_TEST_SUPER_NO_SM_URL="git@github.com:stevencnb/subgrove-test-super-no-sm.git"

@@ -39,7 +39,13 @@ Workflow: **edit `lib/init.sh`, run `./build.sh`.** Never hand-edit the generate
 
 A personal tap now, homebrew-core later:
 
-- **Tap** (`StevenChangZH/homebrew-tap`, `Formula/subgrove.rb`): `url` points at a tagged release tarball; `install` is `bin.install "subgrove"` (one file — the tarball already contains the built script); `test do` runs `subgrove --version`. Install: `brew install StevenChangZH/tap/subgrove`.
+- **Tap** (`stevencnb/homebrew-tap`, `Formula/subgrove.rb`): `url` points at a tagged release tarball; `install` is `bin.install "subgrove"` (one file — the tarball already contains the built script); `test do` runs `subgrove --version`. Install: `brew install stevencnb/tap/subgrove`.
 - **homebrew-core** is deferred: it requires notability and a stable release history the repo doesn't yet have. Revisit once it gains traction; the formula is essentially the same, submitted to `homebrew/homebrew-core` instead of the tap.
 
 The release tarball must be built (`./build.sh`) and in sync before tagging, so the shipped `subgrove` carries the inlined wizard.
+
+## Shell completions
+
+bash and zsh completions ship as adjunct files under `completions/` (`subgrove.bash`, `_subgrove`), installed by the Homebrew formula (`bash_completion.install`, `zsh_completion.install`) and documented for manual sourcing. They complete: the subcommand names; existing worktree names for `merge` / `update` / `remove` / `status` (discovered the same way the script discovers anything — `git rev-parse --show-toplevel`, source `.subgroverc` for `WORKTREES_DIR`, list its subdirectories); submodule paths for `touch=` (from `.gitmodules`); and `true`/`false` for `push=` / `build=` / `force=`.
+
+This does **not** breach "a single distributed shell script" (CLAUDE.md rule #2). That rule is about the *executable*: the runnable `subgrove` stays one self-contained file with no runtime siblings. Completion scripts are optional, install-time adjuncts a package manager drops next to the binary — the same way Homebrew ships completions alongside any single-file tool. They are static (not generated from `lib/`), so `build.sh` is unaffected. fish and PowerShell completions are deferred until asked for (YAGNI).

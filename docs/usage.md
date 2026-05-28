@@ -4,7 +4,7 @@
 
 ## Setup
 
-1. Install `subgrove` on your `$PATH` (`brew install StevenChangZH/tap/subgrove`, or drop the script into a `$PATH` directory). It discovers the superproject from your current directory via `git rev-parse --show-toplevel`, so run it from **inside** the main worktree — any subdirectory works, like `git`. It refuses inside a linked worktree.
+1. Install `subgrove` on your `$PATH` (`brew install stevencnb/tap/subgrove`, or drop the script into a `$PATH` directory). It discovers the superproject from your current directory via `git rev-parse --show-toplevel`, so run it from **inside** the main worktree — any subdirectory works, like `git`. It refuses inside a linked worktree.
 
 2. From the superproject root, run the guided setup:
 

@@ -21,15 +21,17 @@ What's left after subtracting those — _per-feature worktree × isolated submod
 Via [Homebrew](https://brew.sh) (a personal tap):
 
 ```bash
-brew install StevenChangZH/tap/subgrove
+brew install stevencnb/tap/subgrove
 ```
 
 Or grab the single self-contained script and put it on your `$PATH`:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/StevenChangZH/subgrove/main/subgrove -o subgrove
+curl -fsSL https://raw.githubusercontent.com/stevencnb/subgrove/main/subgrove -o subgrove
 chmod +x subgrove && sudo mv subgrove /usr/local/bin/   # or any dir on $PATH
 ```
+
+**Shell completions** (bash + zsh): the Homebrew formula installs them automatically. For a manual install, `source completions/subgrove.bash` from your `~/.bashrc` (bash), or put `completions/_subgrove` on your zsh `$fpath` and run `compinit`.
 
 `subgrove` discovers the superproject from your current directory (like `git`), so you run it from **inside** the main worktree — it no longer needs to live next to your `.gitmodules`.
 
