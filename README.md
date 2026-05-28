@@ -4,6 +4,8 @@ Parallel feature development for a git superproject with submodules. One feature
 
 A single shell script. Zero install. Readable in fifteen minutes.
 
+**The only worktree tool that speaks submodules.** Single-repo managers (gwq, grove) treat worktrees as independent; multi-repo tools (Google `repo`, gita) have no parent at all — none model submodules. For a superproject you'd otherwise stitch together a worktree manager, manual submodule branching, and a sync script; subgrove does all of it from one command surface (`new` / `merge` / `update` / `remove` / `status`), across the parent **and** every submodule, with cross-worktree propagation none of them attempt.
+
 ## Is this for you?
 
 `subgrove` sits at the intersection of three properties:
@@ -15,6 +17,10 @@ A single shell script. Zero install. Readable in fifteen minutes.
 If your repo has no submodules, a single-repo worktree manager like [gwq](https://github.com/d-kuro/gwq) or [grove](https://github.com/DonKoko/grove) is a cleaner fit. If your world is polyrepo (many independent repos, no parent), [Google `repo`](https://source.android.com/docs/setup/reference/repo) or [gita](https://github.com/nosarthur/gita) covers that. If you have a superproject + submodules and want a daily sync rather than per-feature worktrees, [sync_submodules](https://github.com/shibuido/sync_submodules) is the closest thing.
 
 What's left after subtracting those — _per-feature worktree × isolated submodule git dirs × cross-worktree propagation_ — is the gap subgrove fills. See [docs/design/prior-art.md](docs/design/prior-art.md) for the full survey.
+
+## Parallel AI agents
+
+Running several AI coding agents at once is exactly the workload subgrove is built for — on a superproject. Each agent gets its own feature worktree with **truly isolated submodule git dirs** (not just copied `.env` files), so two agents editing the same submodule can't corrupt each other's state. When one lands, `subgrove merge` fast-forwards `main` everywhere it belongs and propagates the new submodule mains into every peer worktree, so the other agents' view of `main` stays consistent. `subgrove status` shows the whole board at a glance: which agent's worktree touched which submodules, and where each sits against `origin/main`.
 
 ## Install
 
