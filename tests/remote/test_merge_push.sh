@@ -54,6 +54,10 @@ feat_sm_b="$( git -C .worktree/feat-g/sm-b rev-parse feat/feat-g)"
 assert_eq "$feat_super" "$(_origin_main "$SUBGROVE_TEST_SUPER_URL")" "super origin = feat tip"
 assert_eq "$feat_sm_a"  "$(_origin_main "$SUBGROVE_TEST_SM_URL")"    "sm-a origin = feat tip"
 assert_eq "$feat_sm_b"  "$(_origin_main "$SUBGROVE_TEST_SM_URL2")"   "sm-b origin = feat tip"
+# Main worktree's submodules re-attached to main, not detached at feat tip
+# (merge.md step 6). The origin checks above don't cover the local HEAD.
+assert_head_on sm-a main
+assert_head_on sm-b main
 # §15: status reflects the resulting state.
 assert_status feat-g "feat/feat-g"
 cleanup_fixture_remote

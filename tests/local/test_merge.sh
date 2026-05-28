@@ -65,6 +65,12 @@ assert_branch_at . main "$feat_super"
 assert_branch_at sm-a main "$feat_a"
 assert_branch_at sm-b main "$feat_b"
 
+# Merged submodules are re-attached to main, not left detached at the right
+# SHA — the property `checkout -B main` exists to guarantee (merge.md step 6).
+# The SHA-only assert_branch_at above passes even on a detached HEAD.
+assert_head_on sm-a main
+assert_head_on sm-b main
+
 # History: every commit between old main and feat tip is now in main's history
 for sha in $feat_p_commits; do assert_ancestor . "$sha" main; done
 for sha in $feat_a_commits; do assert_ancestor sm-a "$sha" main; done
