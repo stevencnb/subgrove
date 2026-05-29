@@ -218,6 +218,9 @@ assert_head_on .worktree/feat-ff/sm-a feat/feat-ff
 assert_grep out "Fast-forwarded 1;"
 assert_grep out "All feature branches caught up"
 assert_grep_v out "git submodule foreach 'git rebase main'"
+# Nothing outstanding → no tagged notice section.
+assert_grep_v out "NEXT STEPS"
+assert_grep_v out "ATTENTION"
 # §15: status reflects the resulting state.
 assert_status feat-ff "feat/feat-ff"
 cleanup_fixture_remote

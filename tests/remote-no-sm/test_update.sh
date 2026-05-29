@@ -174,6 +174,9 @@ state_wt="$(snapshot_state .worktree/feat-y)"
 assert_grep out "Fast-forwarding feature branches onto new main"
 assert_grep out "All feature branches caught up"
 assert_grep_v out "git submodule foreach 'git rebase main'"
+# Nothing outstanding → no tagged notice section.
+assert_grep_v out "NEXT STEPS"
+assert_grep_v out "ATTENTION"
 # Parent stays untouched (update is ref-only; no submodules to fast-forward).
 assert_state_eq .                "$state_main" "[rebase_ff_degenerate] main super"
 assert_state_eq .worktree/feat-y "$state_wt"   "[rebase_ff_degenerate] peer"

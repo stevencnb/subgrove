@@ -308,6 +308,9 @@ register_feature_branch_no_sm feat/feat-bc
 assert_grep out "Running build chain"
 assert_grep out "build failed in \."
 assert_grep out "worktree kept"
+# Failure + recovery are surfaced under the tagged ATTENTION / NEXT STEPS sections.
+assert_grep out "ATTENTION"
+assert_grep out "NEXT STEPS"
 assert_grep_v out "rolling back"
 # Worktree + branch survived, on the feature branch, with the artifact the
 # build wrote before failing — the folder is kept intact, not cleaned out.

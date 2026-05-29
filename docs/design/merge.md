@@ -28,7 +28,7 @@ If anything fails here, no `main` ref has been moved anywhere. The user can fix 
 7. **FF parent main** in main worktree (`git merge --ff-only <prefix><name>`). Parent refs are shared across linked worktrees, so peer worktrees see the new parent main immediately.
 8. **Propagate to peer worktrees.** For every other `.worktree/<peer>/`, for every needs-merge submodule whose git dir exists there:
    - `git -C <peer_sm> fetch <main_sm_path> refs/heads/main:refs/heads/main` — no `+`, so a non-FF on the peer's local main is reported and skipped rather than clobbered.
-   - If the fetch fails, the script inspects the peer's `symbolic-ref HEAD` to distinguish "main is currently checked out in the peer (git refused to update a checked-out branch)" from "peer's main has actually diverged" — the warning text reflects whichever applies.
+   - If the fetch fails, the script inspects the peer's `symbolic-ref HEAD` to distinguish "main is currently checked out in the peer (git refused to update a checked-out branch)" from "peer's main has actually diverged" — the warning text reflects whichever applies, and is surfaced under `⚠ ATTENTION` at the end of the run (see [user-data-rules.md](user-data-rules.md)) rather than only as an inline `warn:` line that a long merge could bury.
    - If `push=true`, also `git -C <peer_sm> fetch <main_sm_path> +refs/heads/main:refs/remotes/origin/main` — mirrors the just-pushed origin/main into the peer's remote-tracking ref so the peer doesn't need a manual `git fetch origin` to see the merge.
 9. **Optional push.** If `push=true`, push parent main and each merged submodule's main from the main worktree to origin.
 10. **Worktree retained.** `merge` never removes the source worktree. Use `remove` separately.

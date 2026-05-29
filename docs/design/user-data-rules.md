@@ -25,6 +25,19 @@ Operationally these collapse into one: every byte under the user's control — c
 - **`cmd_update` is ref-only** (`subgrove:603–681`). No working-tree touch in main worktree or peer; no `require_clean`. The `_update_sync` sentinel is created and deleted around the propagation fetch; the defensive pre-clean refuses to delete a same-named ref that isn't a stale sentinel (`subgrove:646–654`).
 - **`merge -f` was deliberately removed.** See [trade-offs.md](trade-offs.md): "The right resolution is to commit or drop that work, not wipe it."
 
+## Surfacing stranded work (failures & next steps)
+
+A corollary of the two invariants: work the user doesn't *know* is unfinished is as easy to lose as work that was destroyed. So whenever subgrove cannot finish the job and hands part of it back — a hard refusal, a step it skipped to avoid clobbering something, a manual rebase it won't perform for you, or a worktree it kept but couldn't build — it says so unmissably, in a tagged section at the very *end* of the run where it can't scroll away under the progress output above.
+
+Two accumulators (`subgrove:76`) collect these as the command runs, and `flush_notices` (`subgrove:91`) prints them last:
+
+- **`⚠ ATTENTION`** — work subgrove skipped or refused that the user must resolve: a peer whose `main` is checked out or has diverged (merge/update), a submodule with commits to replay or a dirty tree under `rebase=ff`, a `_update_sync` collision, a failed build. These were previously inline `warn:` lines mid-run; routing them through `attention` (`subgrove:79`) re-surfaces them in the end section so a long merge/update can't bury them.
+- **`→ NEXT STEPS`** — the exact follow-up to run: the `git submodule foreach 'git rebase main'` after `update`, the skipped build commands under `build=false`, the rebuild commands after a kept-but-failed build.
+
+Hard failures exit through `err` (`subgrove:59`), which tags the message `✗ Error:`; the recovery steps for most refusals ride in the message itself (the non-FF rebase hint, the `remove` preservation-fetch recovery). The build-failure path is the one non-`err` exit that still flushes a section — it keeps the worktree, so the kept-worktree notice plus rebuild steps go to stderr via `flush_notices >&2` (`subgrove:411`) before a non-zero exit.
+
+Color is opt-out and context-aware: `_color_on` (`subgrove:85`) emits ANSI only when `NO_COLOR` is unset **and** the target fd is a terminal. Piped or captured output (the suite's `>out 2>&1`, `subgrove ... | tee`) is therefore plain text — which is also why the assertions below grep the bare tag word, never an escape sequence.
+
 ## How the tests check the rules
 
 Patterns enforced across the local suite:
@@ -39,6 +52,7 @@ Patterns enforced across the local suite:
 | Worktree-side snapshot pre/post success merge | `merge_golden`, `merge_partial`, `merge_multi_peer` | Phase 2 only touches main super — the feature worktree it merged FROM is byte-identical after |
 | Rollback preserves surroundings | `new_rollback` | Sibling sm-a + `.gitignore` + `.subgroverc` byte-identical across a failed `new` |
 | `-f` preserves branches | `remove_force`, `remove_force_long`, `remove_force_kv`, `remove_advanced_feat` | `-f` discards dirty edits (the user's explicit opt-in) but the preservation fetch for feat branches still runs |
+| `assert_grep out "ATTENTION"` / `"NEXT STEPS"` on stranded-work paths, `assert_grep_v` on the clean path | `test_new` (build-fail, `build=false`, build-success), `test_merge` (peer skip vs clean peer), `test_update` (skips, `rebase=ff` manual, all-caught-up) — local + no-sm, plus the build-fail and `rebase=ff` cells of the remote tiers | the end-of-run notice section (above) fires exactly when work is handed back, and stays silent on a clean finish |
 
 Untracked files are deliberately excluded from `snapshot_state` so the test's own `out` redirect doesn't pollute the snapshot. See [testing.md § Test design principles](testing.md#test-design-principles).
 

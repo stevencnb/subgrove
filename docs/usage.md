@@ -40,7 +40,7 @@ Behavior:
 - Copies items in `COPY_TO_NEW_WORKTREE` from the main worktree into the new worktree. Missing items are silently skipped.
 - Runs `BUILD_CMD` inside each `BUILD_CHAIN` module in order, stopping at the first failure. With `build=false`, prints the commands the user would run instead.
 - Has an `EXIT`/`INT`/`TERM` rollback trap covering **setup** (submodule init, branch creation): if a setup step fails, the half-built worktree and its feature branch are removed so a retry of the same name doesn't trip on residue.
-- A **build failure does not roll back.** The build runs after setup, when the worktree is already complete, so `new` keeps the worktree, its branches (and any commits the build made), warns, prints the command(s) to finish the build by hand, and exits non-zero. Re-run the build manually, or `remove` the worktree to start over.
+- A **build failure does not roll back.** The build runs after setup, when the worktree is already complete, so `new` keeps the worktree, its branches (and any commits the build made), surfaces the failure and the command(s) to finish the build by hand under `⚠ ATTENTION` / `→ NEXT STEPS`, and exits non-zero. Re-run the build manually, or `remove` the worktree to start over.
 
 See [docs/design/lifecycle.md](design/lifecycle.md) for the full rationale.
 
@@ -67,7 +67,7 @@ Manual escape hatch: catch a peer worktree's submodule `main` up to `origin/main
 
 From the main worktree: fetches `origin/main` (parent + every submodule), then for each submodule in `<name>` FF-updates its `refs/heads/main` to point at the just-fetched `origin/main`.
 
-Does not touch any working tree, does not auto-rebase, does not push. Prints the rebase command for the user to run themselves.
+Does not touch any working tree, does not auto-rebase, does not push. Prints the rebase command under `→ NEXT STEPS` for the user to run themselves.
 
 See [docs/design/update.md](design/update.md) for the sentinel mechanism that makes this possible.
 
@@ -90,6 +90,17 @@ Print usage.
 ### `subgrove --version`
 
 Print the version (`subgrove X.Y.Z`). Like `help`, it does no repo discovery, so it works outside a git repo.
+
+## Output: next steps & attention
+
+Every command prints its progress as it runs, then — **only** if it left you something to do — a tagged section at the very end, so it can't scroll away under the progress above:
+
+- **`→ NEXT STEPS`** — manual follow-up to run: the rebase after `update`, the build commands skipped by `build=false`, the rebuild commands after a build that failed.
+- **`⚠ ATTENTION`** — work subgrove skipped or refused that you need to resolve: a peer whose `main` is checked out or has diverged, a submodule left for a manual rebase under `rebase=ff`, a build that failed (the worktree is kept).
+
+A clean run that left nothing outstanding prints no such section. Hard errors are tagged `✗ Error:` and carry their own recovery hint inline.
+
+Color is emitted only when output is a terminal: piping or redirecting (`subgrove … | tee`, CI logs) yields plain text, and setting [`NO_COLOR`](https://no-color.org) disables it outright.
 
 ## Workflows
 

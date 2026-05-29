@@ -93,6 +93,8 @@ assert_file_absent .worktree/feat-build-skip/sm-a/.built
 # bug where BUILD_CMD ran in submodules outside the chain.
 assert_file_absent .worktree/feat-build-skip/sm-b/.built
 assert_grep out "Build chain skipped"
+# The skipped build commands are surfaced under the tagged NEXT STEPS section.
+assert_grep out "NEXT STEPS"
 # §15: status reflects the resulting state.
 assert_status feat-build-skip "feat/feat-build-skip"
 cleanup_fixture
@@ -110,6 +112,9 @@ git add .subgroverc
 git commit --quiet -m "enable BUILD_CHAIN for test"
 ./subgrove new feat-build >out 2>&1
 assert_file_exists .worktree/feat-build/sm-a/.built
+# Build succeeded → nothing left to do, so no tagged notice section.
+assert_grep_v out "NEXT STEPS"
+assert_grep_v out "ATTENTION"
 # §15: status reflects the resulting state.
 assert_status feat-build "feat/feat-build"
 cleanup_fixture
@@ -346,6 +351,9 @@ assert_ne "$base_sha" "$(git rev-parse feat/feat-x)" "feat branch should have ad
 # Warned (pointing at the kept worktree) and did NOT roll back.
 assert_grep out "build failed in sm-a"
 assert_grep out "worktree kept"
+# Failure + recovery are surfaced under the tagged ATTENTION / NEXT STEPS sections.
+assert_grep out "ATTENTION"
+assert_grep out "NEXT STEPS"
 assert_grep_v out "rolling back"
 # §15: status reflects the resulting state — the kept worktree is still listed.
 assert_status feat-x "feat/feat-x"

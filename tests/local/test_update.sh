@@ -33,6 +33,8 @@ assert_branch_at .worktree/feat-y/sm-b main "$sm_b_main_before"
 # manual-rebase hint is printed rather than any branch being auto-advanced.
 assert_branch_at .worktree/feat-y/sm-a feat/feat-y "$feat_a_before"
 assert_grep out "git submodule foreach 'git rebase main'"
+# The manual-rebase hint is surfaced under the tagged NEXT STEPS section.
+assert_grep out "NEXT STEPS"
 assert_grep_v out "Fast-forwarding feature branches"
 # §15: status reflects the resulting state. update is ref-only and retains
 # the worktree.
@@ -81,6 +83,8 @@ peer_state_before="$(snapshot_state .worktree/feat-y/sm-a)"
 commit_one "$FIXTURE_ROOT/sm-a" "upstream change"
 ./subgrove update feat-y >out 2>&1
 assert_grep out "main checked out"
+# The skip is surfaced under the tagged ATTENTION section.
+assert_grep out "ATTENTION"
 peer_main_after="$(git -C .worktree/feat-y/sm-a rev-parse main)"
 assert_eq "$peer_main_before" "$peer_main_after"
 # Full state preserved (HEAD on main, working tree clean at original SHA).
@@ -104,6 +108,8 @@ peer_state_before="$(snapshot_state .worktree/feat-y/sm-a)"
 commit_one "$FIXTURE_ROOT/sm-a" "upstream change"
 ./subgrove update feat-y >out 2>&1
 assert_grep out "diverged"
+# The skip is surfaced under the tagged ATTENTION section.
+assert_grep out "ATTENTION"
 # Peer's main is STILL at the forged SHA — the sentinel fetch refused
 # rather than clobbering it.
 assert_branch_at .worktree/feat-y/sm-a main "$forged_sha"
@@ -281,8 +287,10 @@ assert_head_on .worktree/feat-y/sm-a feat/feat-y
 # sm-a fast-forwarded; sm-b had no upstream movement → already current.
 assert_grep out "Fast-forwarded 1;"
 assert_grep out "All feature branches caught up"
-# Nothing outstanding → no manual-rebase hint.
+# Nothing outstanding → no manual-rebase hint, and no tagged notice section.
 assert_grep_v out "git submodule foreach 'git rebase main'"
+assert_grep_v out "NEXT STEPS"
+assert_grep_v out "ATTENTION"
 # §15: status reflects the resulting state.
 assert_status feat-y "feat/feat-y"
 cleanup_fixture
@@ -303,7 +311,10 @@ new_main="$(git -C "$FIXTURE_ROOT/sm-a" rev-parse main)"
 assert_branch_at .worktree/feat-y/sm-a main "$new_main"
 assert_branch_at .worktree/feat-y/sm-a feat/feat-y "$feat_a"
 assert_grep out "sm-a.*commit\(s\) to replay"
-assert_grep out "Next: rebase the remaining"
+# Per-submodule reason under ATTENTION; the manual-rebase hint under NEXT STEPS.
+assert_grep out "ATTENTION"
+assert_grep out "Rebase the remaining"
+assert_grep out "NEXT STEPS"
 assert_grep out "git submodule foreach 'git rebase main'"
 # §15: status reflects the resulting state.
 assert_status feat-y "feat/feat-y"
@@ -326,6 +337,7 @@ assert_pending_file .worktree/feat-y/sm-a README unstaged
 assert_branch_at .worktree/feat-y/sm-a main "$new_main"
 assert_branch_at .worktree/feat-y/sm-a feat/feat-y "$feat_a_before"
 assert_grep out "sm-a.*tree is dirty"
+assert_grep out "ATTENTION"
 assert_grep out "git submodule foreach 'git rebase main'"
 # Dirty edit preserved.
 assert_pending_file .worktree/feat-y/sm-a README unstaged

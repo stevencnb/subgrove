@@ -15,7 +15,7 @@ If a *setup* step fails after the worktree directory has been created — submod
 
 ## Build failure keeps the worktree
 
-The build chain runs *after* the rollback is disarmed, so a build failure does **not** tear the worktree down. By the time the build runs the worktree is structurally complete — submodules initialised, feature branches created, possibly with commits the build already made — and discarding all of that because a slow, re-runnable build step failed is the wrong trade. Instead `new` warns, prints the command(s) to finish the build by hand (from the failed module onward), leaves the worktree + folder + branches (and any commits) in place, and exits non-zero so callers notice the partial success. Fix the build and re-run it manually, or `subgrove remove <name>` to start over. The end state matches `build=false`, plus the warning.
+The build chain runs *after* the rollback is disarmed, so a build failure does **not** tear the worktree down. By the time the build runs the worktree is structurally complete — submodules initialised, feature branches created, possibly with commits the build already made — and discarding all of that because a slow, re-runnable build step failed is the wrong trade. Instead `new` surfaces the failure under `⚠ ATTENTION` and the command(s) to finish the build by hand (from the failed module onward) under `→ NEXT STEPS` — the tagged notice section flushed to stderr (see [user-data-rules.md](user-data-rules.md)) — leaves the worktree + folder + branches (and any commits) in place, and exits non-zero so callers notice the partial success. Fix the build and re-run it manually, or `subgrove remove <name>` to start over. The end state matches `build=false`, plus the warning.
 
 ## `remove`
 

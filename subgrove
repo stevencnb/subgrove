@@ -52,8 +52,56 @@ BUILD_CMD="./init.sh && ./build.sh"
 COPY_TO_NEW_WORKTREE=()
 BRANCH_PREFIX="feat/"
 
-err() { echo "Error: $*" >&2; exit 1; }
+# err exits non-zero with a red ✗-tagged "Error:" line — the failure tag of the
+# user-data-rules.md notice convention. Color auto-disables off a TTY / under
+# NO_COLOR (_color_on), so captured test output stays plain "Error:" text. The
+# message is a printf arg (not in the format), so a '%' in it is harmless.
+err() {
+    if _color_on 2; then
+        printf '\033[1;31m✗ Error:\033[0m %s\n' "$*" >&2
+    else
+        printf '✗ Error: %s\n' "$*" >&2
+    fi
+    exit 1
+}
 info() { echo ">>> $*"; }
+
+# ---- User-facing notices (failures & next steps) ------------------------
+#
+# When a command leaves the user manual next steps, or skips/refuses part of
+# its work, it records them here and flushes them as one tagged, colorized
+# section at the very end (flush_notices) — so they are never buried in the
+# progress output above. See docs/design/user-data-rules.md. macOS bash 3.2:
+# arrays are fine, and -u is off so empty-array expansion never trips.
+NEXT_STEPS=()    # manual follow-up the user should run (commands / actions)
+ATTENTION=()     # work subgrove skipped/refused that the user must resolve
+next_step() { NEXT_STEPS+=("$1"); }
+attention() { ATTENTION+=("$1"); }
+
+# _color_on FD -> 0 when ANSI color should go to file descriptor FD: NO_COLOR
+# unset (https://no-color.org) AND FD is a terminal. The TTY test keeps
+# captured/piped output (the test suite, `subgrove ... | tee`) plain so greps
+# match the bare text.
+_color_on() { [[ -z "${NO_COLOR:-}" ]] && [[ -t "$1" ]]; }
+
+# flush_notices — print the accumulated ATTENTION / NEXT STEPS section, or
+# nothing when both are empty (so clean runs stay quiet). Writes to stdout;
+# on a failure path redirect the call (flush_notices >&2) and the color test
+# follows the redirected fd.
+flush_notices() {
+    [[ ${#ATTENTION[@]} -eq 0 && ${#NEXT_STEPS[@]} -eq 0 ]] && return 0
+    local b='' y='' c='' r='' item
+    if _color_on 1; then b=$'\033[1m'; y=$'\033[33m'; c=$'\033[36m'; r=$'\033[0m'; fi
+    echo
+    if [[ ${#ATTENTION[@]} -gt 0 ]]; then
+        printf '%s⚠ ATTENTION%s\n' "$b$y" "$r"
+        for item in "${ATTENTION[@]}"; do printf '    %s\n' "$item"; done
+    fi
+    if [[ ${#NEXT_STEPS[@]} -gt 0 ]]; then
+        printf '%s→ NEXT STEPS%s\n' "$b$c" "$r"
+        for item in "${NEXT_STEPS[@]}"; do printf '    %s\n' "$item"; done
+    fi
+}
 
 # Rollback support for cmd_new — wired via trap once a worktree dir has been
 # materialised. Globals (not locals) so the EXIT-trap handler sees them no
@@ -339,28 +387,28 @@ cmd_new() {
             fi
         done
     else
-        info "Build chain skipped (build=false). Run manually:"
+        info "Build chain skipped (build=false)."
+        next_step "Run the skipped build chain when ready:"
         for module in "${BUILD_CHAIN[@]}"; do
-            echo "    ( cd $wt_path/$module && $BUILD_CMD )"
+            next_step "( cd $wt_path/$module && $BUILD_CMD )"
         done
     fi
 
     if [[ -n "$build_failed" ]]; then
-        # The worktree is built and kept; only the build failed. Warn loudly,
-        # show how to finish the build by hand (from the failed module onward),
-        # and exit non-zero so callers notice the partial success.
+        # The worktree is built and kept; only the build failed. Surface it as a
+        # tagged notice (to stderr) pointing at the kept worktree and how to
+        # finish the build by hand from the failed module onward, then exit
+        # non-zero so callers notice the partial success.
+        attention "build failed in $build_failed — worktree kept (the build is re-runnable)."
+        attention "kept worktree: $wt_path  (branch $branch)"
+        next_step "Fix the build, then run:"
         local seen=""
-        {
-            echo ">>> build failed in $build_failed — worktree kept (the build is re-runnable)."
-            echo "    Worktree: $wt_path"
-            echo "    Branch:   $branch"
-            echo "    Fix the build, then run:"
-            for module in "${BUILD_CHAIN[@]}"; do
-                [[ -z "$seen" && "$module" != "$build_failed" ]] && continue
-                seen=1
-                echo "    ( cd $wt_path/$module && $BUILD_CMD )"
-            done
-        } >&2
+        for module in "${BUILD_CHAIN[@]}"; do
+            [[ -z "$seen" && "$module" != "$build_failed" ]] && continue
+            seen=1
+            next_step "( cd $wt_path/$module && $BUILD_CMD )"
+        done
+        flush_notices >&2
         exit 1
     fi
 
@@ -369,6 +417,7 @@ cmd_new() {
 Worktree ready: $wt_path
 Branch:         $branch
 EOF
+    flush_notices
 }
 
 cmd_remove() {
@@ -613,9 +662,9 @@ cmd_merge() {
                     local peer_head
                     peer_head="$(git -C "$peer_sm" symbolic-ref --quiet HEAD 2>/dev/null || true)"
                     if [[ "$peer_head" == "refs/heads/main" ]]; then
-                        echo "    warn: $peer_name/$sm has main checked out — propagation refused (run 'git checkout <feat>' there, then re-merge)"
+                        attention "$peer_name/$sm has main checked out — propagation refused (run 'git checkout <feat>' there, then re-merge)"
                     else
-                        echo "    warn: $peer_name/$sm main has diverged from main worktree's main — left as-is"
+                        attention "$peer_name/$sm main has diverged from main worktree's main — left as-is"
                     fi
                     peer_skipped=$((peer_skipped + 1))
                     continue
@@ -662,6 +711,7 @@ Merge complete.
   Parent merged:      $parent_needs_merge
   Pushed:             $push_arg
 EOF
+    flush_notices
 }
 
 cmd_update() {
@@ -706,7 +756,7 @@ cmd_update() {
         # refs/heads/* and refs/tags/*, so we stage origin/main under a
         # transient head ref for the duration of the fetch.
         if ! git -C "$main_sm_path" rev-parse --verify --quiet refs/remotes/origin/main >/dev/null; then
-            echo "    warn: $sm — no refs/remotes/origin/main in main worktree; skipped"
+            attention "$sm — no refs/remotes/origin/main in main worktree; skipped"
             skipped=$((skipped + 1))
             continue
         fi
@@ -719,7 +769,7 @@ cmd_update() {
             if git -C "$main_sm_path" merge-base --is-ancestor "$sync_ref" refs/remotes/origin/main 2>/dev/null; then
                 git -C "$main_sm_path" update-ref -d "$sync_ref"
             else
-                echo "    warn: $sm — refs/heads/_update_sync exists and is not reachable from origin/main (not a stale sentinel); skipped to avoid clobbering it"
+                attention "$sm — refs/heads/_update_sync exists and is not reachable from origin/main (not a stale sentinel); skipped to avoid clobbering it"
                 skipped=$((skipped + 1))
                 continue
             fi
@@ -732,9 +782,9 @@ cmd_update() {
         else
             peer_head="$(git -C "$peer_sm" symbolic-ref --quiet HEAD 2>/dev/null || true)"
             if [[ "$peer_head" == "refs/heads/main" ]]; then
-                echo "    warn: $sm has main checked out in $name — skipped"
+                attention "$sm has main checked out in $name — skipped"
             else
-                echo "    warn: $sm main in $name has diverged from origin/main — skipped"
+                attention "$sm main in $name has diverged from origin/main — skipped"
             fi
             skipped=$((skipped + 1))
         fi
@@ -745,12 +795,10 @@ cmd_update() {
     info "Updated $updated submodule main(s); $skipped skipped"
 
     if [[ "$rebase_arg" != "ff" ]]; then
-        cat <<EOF
-
-Next: rebase the feature branches in $name onto the new main where needed.
-  cd $wt_path
-  git submodule foreach 'git rebase main'      # let conflicts halt the loop
-EOF
+        next_step "Rebase the feature branches in $name onto the new main where needed:"
+        next_step "cd $wt_path"
+        next_step "git submodule foreach 'git rebase main'      # let conflicts halt the loop"
+        flush_notices
         return 0
     fi
 
@@ -782,13 +830,13 @@ EOF
         # main; otherwise the branch has commits of its own → real rebase.
         if ! git -C "$peer_sm" merge-base --is-ancestor HEAD refs/heads/main 2>/dev/null; then
             ahead="$(git -C "$peer_sm" rev-list --count refs/heads/main..HEAD 2>/dev/null || echo '?')"
-            echo "    $sm: $br has $ahead commit(s) to replay — rebase manually"
+            attention "$sm: $br has $ahead commit(s) to replay — rebase manually"
             manual_list+=("$sm")
             continue
         fi
         # Fast-forward is possible. Never touch a dirty tree.
         if ! is_clean "$peer_sm"; then
-            echo "    $sm: $br fast-forwardable but tree is dirty — rebase manually"
+            attention "$sm: $br fast-forwardable but tree is dirty — rebase manually"
             manual_list+=("$sm")
             continue
         fi
@@ -796,7 +844,7 @@ EOF
             echo "    $sm: $br → $(git -C "$peer_sm" rev-parse --short refs/heads/main)"
             ff_done=$((ff_done + 1))
         else
-            echo "    warn: $sm: $br fast-forward failed — rebase manually"
+            attention "$sm: $br fast-forward failed — rebase manually"
             manual_list+=("$sm")
         fi
     done < <(list_all_submodules)
@@ -804,16 +852,14 @@ EOF
     info "Fast-forwarded $ff_done; ${#manual_list[@]} need manual rebase; $ff_current already current"
 
     if [[ ${#manual_list[@]} -gt 0 ]]; then
-        cat <<EOF
-
-Next: rebase the remaining feature branch(es) in $name — ${manual_list[*]}
-  cd $wt_path
-  git submodule foreach 'git rebase main'      # let conflicts halt the loop
-EOF
+        next_step "Rebase the remaining feature branch(es) in $name — ${manual_list[*]}"
+        next_step "cd $wt_path"
+        next_step "git submodule foreach 'git rebase main'      # let conflicts halt the loop"
     else
         echo
         info "All feature branches caught up — nothing to rebase."
     fi
+    flush_notices
 }
 
 cmd_list() {

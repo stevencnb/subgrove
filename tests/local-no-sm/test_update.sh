@@ -21,8 +21,9 @@ assert_grep out "warn: parent fetch failed"
 # Submodule-update phase narration reflects zero submodules.
 assert_grep out "FF-updating peer worktree 'feat-y' submodule mains from origin/main"
 assert_grep out "Updated 0 submodule main\(s\); 0 skipped"
-# Rebase guidance is unconditional and still printed.
+# Rebase guidance is unconditional and still printed, under the NEXT STEPS tag.
 assert_grep out "git submodule foreach 'git rebase main'"
+assert_grep out "NEXT STEPS"
 # §15: status reflects the resulting state.
 assert_status feat-y "feat/feat-y"
 cleanup_fixture
@@ -116,6 +117,9 @@ cd "$FIXTURE_SUPER"
 assert_grep out "Fast-forwarding feature branches onto new main"
 assert_grep out "All feature branches caught up"
 assert_grep_v out "git submodule foreach 'git rebase main'"
+# Nothing outstanding → no tagged notice section.
+assert_grep_v out "NEXT STEPS"
+assert_grep_v out "ATTENTION"
 # §15: status reflects the resulting state.
 assert_status feat-y "feat/feat-y"
 cleanup_fixture

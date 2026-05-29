@@ -384,6 +384,9 @@ feat_y_sm_b_state="$(snapshot_state .worktree/feat-y/sm-b)"
 
 feat_a="$(git -C .worktree/feat-x/sm-a rev-parse feat/feat-x)"
 assert_branch_at .worktree/feat-y/sm-a main "$feat_a"
+# Clean propagation (no peer refused) → no tagged notice section.
+assert_grep_v out "ATTENTION"
+assert_grep_v out "NEXT STEPS"
 # Peer's sm-b not in needs_merge — totally unchanged.
 assert_state_eq .worktree/feat-y/sm-b "$feat_y_sm_b_state"
 # §15: status reflects the resulting state. Both the merged and peer
@@ -406,6 +409,8 @@ commit_one .worktree/feat-x/sm-a "sm-a change"
 
 ./subgrove merge feat-x >out 2>&1
 assert_grep out "main checked out"
+# The refused propagation is surfaced under the tagged ATTENTION section.
+assert_grep out "ATTENTION"
 peer_main_after="$(git -C .worktree/feat-y/sm-a rev-parse main)"
 assert_eq "$peer_main_before" "$peer_main_after"
 # Full state preserved — HEAD still on main, working tree at original SHA.
@@ -434,6 +439,8 @@ commit_one .worktree/feat-x/sm-a "sm-a change"
 
 ./subgrove merge feat-x >out 2>&1
 assert_grep out "diverged"
+# The refused propagation is surfaced under the tagged ATTENTION section.
+assert_grep out "ATTENTION"
 # Peer's main is STILL at the forged SHA — propagation didn't clobber it.
 assert_branch_at .worktree/feat-y/sm-a main "$forged_sha"
 # Full state preserved (HEAD on feat/feat-y, working tree at feat tip).
