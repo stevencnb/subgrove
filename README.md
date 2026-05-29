@@ -98,7 +98,7 @@ Long-form reference: [docs/usage.md](docs/usage.md).
 `.subgroverc` at the superproject root:
 
 ```bash
-SUBGROVE_CONFIG_VERSION="0.1.1"          # stamped by `init`; compared on major (rerun init on mismatch)
+SUBGROVE_CONFIG_VERSION="0.2.0"          # stamped by `init`; compared on major (rerun init on mismatch)
 WORKTREES_DIR=".worktree"                # repo-relative folder holding worktrees (gitignored)
 BUILD_CHAIN=(libfoo libbar)              # submodules to init+build after `new`
 BUILD_CMD="./init.sh && ./build.sh"      # build command per BUILD_CHAIN module

@@ -8,7 +8,7 @@
 # its own version: a missing line or a different major makes mutating commands
 # (new/merge/update/remove) stop and ask you to rerun `subgrove init`, while
 # read-only status/list only warn. Keep it present and matching your major.
-SUBGROVE_CONFIG_VERSION="0.1.1"
+SUBGROVE_CONFIG_VERSION="0.2.0"
 
 # WORKTREES_DIR: folder (relative to the superproject root) holding one
 # subdirectory per feature worktree. Must be gitignored — subgrove refuses to

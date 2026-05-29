@@ -6,7 +6,7 @@
 # self-contained shell script; the release tarball must be built (`./build.sh`)
 # and in sync before tagging so it carries the inlined `init` wizard.
 pkgname=subgrove
-pkgver=0.1.1
+pkgver=0.2.0
 pkgrel=1
 pkgdesc="Parallel feature worktrees for a git superproject with submodules"
 arch=('any')

@@ -37,7 +37,7 @@
 
 set -eo pipefail   # no -u: macOS bash 3.2 trips on empty-array expansion
 
-VERSION="0.1.1"
+VERSION="0.2.0"
 # Default worktree folder (repo-relative); overridable via WORKTREES_DIR in
 # .subgroverc. Holds one subdirectory per feature worktree, and must be
 # gitignored — subgrove refuses to run otherwise (assert_worktrees_ignored).

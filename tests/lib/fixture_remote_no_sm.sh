@@ -136,7 +136,7 @@ EOF
 
         echo ".worktree/" > .gitignore
         cat > .subgroverc <<'EOF'
-SUBGROVE_CONFIG_VERSION="0.1.1"
+SUBGROVE_CONFIG_VERSION="0.2.0"
 BUILD_CHAIN=()
 BUILD_CMD="true"
 COPY_TO_NEW_WORKTREE=()

@@ -17,7 +17,7 @@
       packages = forAllSystems (pkgs: {
         default = pkgs.stdenvNoCC.mkDerivation {
           pname = "subgrove";
-          version = "0.1.1"; # keep in sync with VERSION in ./subgrove
+          version = "0.2.0"; # keep in sync with VERSION in ./subgrove
           src = self;
           nativeBuildInputs = [ pkgs.installShellFiles pkgs.makeWrapper ];
           dontConfigure = true;

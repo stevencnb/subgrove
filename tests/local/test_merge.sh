@@ -596,7 +596,7 @@ cleanup_fixture
 mkfixture_local merge_custom_wtdir
 cd "$FIXTURE_SUPER"
 cat > .subgroverc <<'EOF'
-SUBGROVE_CONFIG_VERSION="0.1.1"
+SUBGROVE_CONFIG_VERSION="0.2.0"
 WORKTREES_DIR="wt"
 BUILD_CHAIN=()
 BUILD_CMD="true"
@@ -635,7 +635,7 @@ cleanup_fixture
 mkfixture_local merge_push_default_override
 cd "$FIXTURE_SUPER"
 cat > .subgroverc <<'EOF'
-SUBGROVE_CONFIG_VERSION="0.1.1"
+SUBGROVE_CONFIG_VERSION="0.2.0"
 WORKTREES_DIR=".worktree"
 BUILD_CHAIN=()
 BUILD_CMD="true"

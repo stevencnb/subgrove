@@ -281,7 +281,7 @@ cleanup_fixture_remote
 mkfixture_remote merge_push_default_on
 cd "$FIXTURE_SUPER"
 cat > .subgroverc <<'EOF'
-SUBGROVE_CONFIG_VERSION="0.1.1"
+SUBGROVE_CONFIG_VERSION="0.2.0"
 BUILD_CHAIN=()
 BUILD_CMD="true"
 COPY_TO_NEW_WORKTREE=()
@@ -311,7 +311,7 @@ cleanup_fixture_remote
 mkfixture_remote merge_push_default_override
 cd "$FIXTURE_SUPER"
 cat > .subgroverc <<'EOF'
-SUBGROVE_CONFIG_VERSION="0.1.1"
+SUBGROVE_CONFIG_VERSION="0.2.0"
 BUILD_CHAIN=()
 BUILD_CMD="true"
 COPY_TO_NEW_WORKTREE=()

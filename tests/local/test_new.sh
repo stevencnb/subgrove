@@ -80,7 +80,7 @@ cleanup_fixture
 mkfixture_local new_build_false
 cd "$FIXTURE_SUPER"
 cat > .subgroverc <<'EOF'
-SUBGROVE_CONFIG_VERSION="0.1.1"
+SUBGROVE_CONFIG_VERSION="0.2.0"
 BUILD_CHAIN=(sm-a)
 BUILD_CMD="touch .built"
 COPY_TO_NEW_WORKTREE=()
@@ -104,7 +104,7 @@ cleanup_fixture
 mkfixture_local new_build_runs
 cd "$FIXTURE_SUPER"
 cat > .subgroverc <<'EOF'
-SUBGROVE_CONFIG_VERSION="0.1.1"
+SUBGROVE_CONFIG_VERSION="0.2.0"
 BUILD_CHAIN=(sm-a)
 BUILD_CMD="touch .built"
 COPY_TO_NEW_WORKTREE=()
@@ -279,7 +279,7 @@ cleanup_fixture
 mkfixture_local new_copy
 cd "$FIXTURE_SUPER"
 cat > .subgroverc <<'EOF'
-SUBGROVE_CONFIG_VERSION="0.1.1"
+SUBGROVE_CONFIG_VERSION="0.2.0"
 BUILD_CHAIN=()
 BUILD_CMD="true"
 COPY_TO_NEW_WORKTREE=(.copy-me .copy-dir)
@@ -311,7 +311,7 @@ cleanup_fixture
 mkfixture_local new_copy_missing
 cd "$FIXTURE_SUPER"
 cat > .subgroverc <<'EOF'
-SUBGROVE_CONFIG_VERSION="0.1.1"
+SUBGROVE_CONFIG_VERSION="0.2.0"
 BUILD_CHAIN=()
 BUILD_CMD="true"
 COPY_TO_NEW_WORKTREE=(.nonexistent-file)
@@ -334,7 +334,7 @@ cleanup_fixture
 mkfixture_local new_build_fail_keeps
 cd "$FIXTURE_SUPER"
 cat > .subgroverc <<'EOF'
-SUBGROVE_CONFIG_VERSION="0.1.1"
+SUBGROVE_CONFIG_VERSION="0.2.0"
 BUILD_CHAIN=(sm-a)
 BUILD_CMD="git -C .. commit --allow-empty -m wip-on-parent && false"
 COPY_TO_NEW_WORKTREE=()
@@ -389,7 +389,7 @@ cleanup_fixture
 mkfixture_local new_build_multi
 cd "$FIXTURE_SUPER"
 cat > .subgroverc <<'EOF'
-SUBGROVE_CONFIG_VERSION="0.1.1"
+SUBGROVE_CONFIG_VERSION="0.2.0"
 BUILD_CHAIN=(sm-a sm-b)
 BUILD_CMD='n=$(($(cat ../.build-counter 2>/dev/null || echo 0) + 1)); echo "$n" > ../.build-counter; echo "$n" > .built-order; touch .built'
 COPY_TO_NEW_WORKTREE=()
@@ -466,7 +466,7 @@ cleanup_fixture
 mkfixture_local new_custom_wtdir
 cd "$FIXTURE_SUPER"
 cat > .subgroverc <<'EOF'
-SUBGROVE_CONFIG_VERSION="0.1.1"
+SUBGROVE_CONFIG_VERSION="0.2.0"
 WORKTREES_DIR="wt"
 BUILD_CHAIN=()
 BUILD_CMD="true"
